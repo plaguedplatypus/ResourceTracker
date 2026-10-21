@@ -1,0 +1,56 @@
+-- Item IDs sit beside their resource names; false means no verified ID.
+return {
+    ["trap catches"] = {
+        ["chinchompa"] = 10033,
+        ["red chinchompa"] = 10034,
+        ["black chinchompa"] = 60791,
+        ["cobalt skillchompa"] = 31595,
+        ["viridian skillchompa"] = 31596,
+        ["azure skillchompa"] = 31597,
+        ["crimson skillchompa"] = 31598,
+        ["crystal skillchompa"] = 40995,
+        ["green salamander"] = 10149,
+        ["orange salamander"] = 10146,
+        ["red salamander"] = 10147,
+        ["black salamander"] = 10148,
+    },
+
+    ["hunter products"] = {
+        ["plain whirligig shell"] = 52795,
+        ["gliding whirligig shell"] = 52796,
+        ["swift whirligig shell"] = 52797,
+        ["hasty whirligig shell"] = 52798,
+        ["speedy whirligig shell"] = 52799,
+        ["dazzling whirligig shell"] = 52800,
+        ["kebbit spike"] = 10105,
+        ["kebbit claws"] = 10113,
+        ["kebbit teeth"] = 10109,
+        ["long kebbit spike"] = 10107,
+        ["rabbit foot"] = 10134,
+        ["jackalope antlers"] = 60789,
+        ["grenwall spikes"] = 12539,
+        ["shiny shell chippings"] = false,
+    },
+
+    ["anachronia bgh"] = {
+        ["dinosaur bones"] = 48075,
+        ["dinosaur scale"] = 48028,
+        ["dinosaur hide"] = 48022,
+        ["damaged dinosaur hide"] = false,
+        ["raw arcane apoterrasaur meat"] = 47948,
+        ["raw scimitops meat"] = 47952,
+        ["raw bagrada rex meat"] = 47956,
+        ["raw spicati apoterrasaur meat"] = 47960,
+        ["raw asciatops meat"] = 47964,
+        ["raw corbicula rex meat"] = 47968,
+        ["raw oculi apoterrasaur meat"] = 47972,
+        ["raw malletops meat"] = 47976,
+        ["raw pavosaurus rex meat"] = 47980,
+    },
+
+    ["havenhythe bgh"] = {
+        ["apex hide"] = false,
+        ["raw giant chinchompa meat"] = false,
+        ["raw giant kebbit meat"] = false,
+    },
+}

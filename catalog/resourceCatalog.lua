@@ -1,8 +1,13 @@
-local data = require("catalog/catalogData")
+local materials = require("catalog/archaeology/materials")
+local artefacts = require("catalog/archaeology/artefacts")
+local mining = require("catalog/mining")
+local woodcutting = require("catalog/woodcutting")
+local fishing = require("catalog/fishing")
 
 local catalog = {}
 local byName = {}
-local options = {}
+local byId = {}
+local groupsBySkill = {}
 
 -- These entries drive the tracker tabs and the order in which players see them.
 local categories = {
@@ -28,57 +33,58 @@ function catalog.normalize(name)
     return normalized
 end
 
-local function add(name, skill, group)
-    -- A resource can belong to several groups, especially Archaeology sites.
+local function add(name, skill, groups, itemId, spriteId, artefact)
     local normalized = catalog.normalize(name)
-    local definition = byName[normalized]
-    if definition then
-        if group then
-            definition.groups[group] = true
-        end
-        return
-    end
-    definition = { name = name, skill = skill, groups = {} }
-    if group then
+    assert(not byName[normalized], "Duplicate resource: " .. name)
+    local definition = {
+        name = name,
+        skill = skill,
+        groups = {},
+        itemId = itemId or nil,
+        spriteId = spriteId or nil,
+        artefact = artefact or nil
+    }
+    for _, group in ipairs(groups) do
         definition.groups[group] = true
+        groupsBySkill[skill] = groupsBySkill[skill] or {}
+        groupsBySkill[skill][group] = true
     end
     byName[normalized] = definition
-    options[skill] = options[skill] or {}
-    options[skill][#options[skill] + 1] = definition
+    if itemId then
+        assert(not byId[itemId], "Duplicate resource ID: " .. itemId)
+        byId[itemId] = definition
+    end
 end
 
--- Archaeology has two display sections but shares the same site filters.
-for site, items in pairs(data.archaeology.materials) do
-    for _, name in ipairs(items) do
-        add(name, "archaeology", site)
+for name, entry in pairs(materials) do
+    add(name, "archaeology", entry.sites, entry.id)
+end
+for site, names in pairs(artefacts) do
+    for _, name in ipairs(names) do
+        add(name, "archaeology", { site }, nil, nil, true)
     end
 end
-for site, items in pairs(data.archaeology.artefacts) do
-    for _, name in ipairs(items) do
-        add(name, "archaeology", site)
-        byName[catalog.normalize(name)].artefact = true
-    end
-end
-for skill, groups in pairs(data) do
-    if skill ~= "archaeology" then
-        for group, items in pairs(groups) do
-            for _, name in ipairs(items) do
-                add(name, skill, group)
+local grouped = {
+    farming = require("catalog/farming"),
+    invention = require("catalog/invention"),
+    divination = require("catalog/divination"),
+    hunter = require("catalog/hunter")
+}
+for skill, sections in pairs(grouped) do
+    for group, entries in pairs(sections) do
+        for name, value in pairs(entries) do
+            if skill == "invention" then
+                add(name, skill, { group }, nil, value)
+            else
+                add(name, skill, { group }, value)
             end
         end
     end
 end
 
-local miningWords = { "limestone", "essence", "clay", "sandstone", "granite", "calcified" }
-local woodcuttingWords = {
-    "logs", "bird's nest", "crystal geode", "bamboo", "timber", "eternal magic tree branch",
-    "petrified roots", "petrified bark", "petrified knot", "chima moss"
-}
-local fishNames = {
-    "shrimp", "anchovies", "trout", "salmon", "tuna", "lobster", "swordfish", "shark",
-    "monkfish", "rocktail", "sailfish", "manta ray", "sea turtle", "jellyfish", "cavefish",
-    "catfish", "bass", "cod", "herring", "mackerel", "pike", "crayfish"
-}
+function catalog.findById(itemId)
+    return byId[itemId]
+end
 
 local function hasWord(name, word)
     return name == word or name:sub(1, #word + 1) == word .. " "
@@ -92,8 +98,10 @@ function catalog.find(name, skillHint)
         return nil
     end
     if skillHint == "seren" then
-        -- Seren rewards can contain many items, so preserve their provided name.
-        return { name = name, skill = "seren", groups = {} }
+        -- Seren can gift unrelated rewards. Count only recognized resources.
+        local known = byName[normalized]
+        return known and { name = known.name, skill = "seren", groups = {},
+            itemId = known.itemId } or nil
     end
     local known = byName[normalized]
     if known and (not skillHint or known.skill == skillHint) then
@@ -130,19 +138,19 @@ function catalog.find(name, skillHint)
     if normalized:sub(-4) == " ore" then
         return { name = name, skill = "mining", groups = {} }
     end
-    for _, word in ipairs(miningWords) do
+    for _, word in ipairs(mining.words) do
         if hasWord(normalized, word) then
             return { name = name, skill = "mining", groups = {} }
         end
     end
-    for _, word in ipairs(woodcuttingWords) do
+    for _, word in ipairs(woodcutting.words) do
         if hasWord(normalized, word) then
             return { name = name, skill = "woodcutting", groups = {} }
         end
     end
     if normalized:sub(1, 4) == "raw " then
         local fish = normalized:sub(5)
-        for _, namePart in ipairs(fishNames) do
+        for _, namePart in ipairs(fishing.names) do
             if fish == namePart or fish:sub(-#namePart) == namePart then
                 return { name = name, skill = "fishing", groups = {} }
             end
@@ -164,14 +172,8 @@ end
 
 function catalog.getGroups(skill)
     if skill == "divination" then return { "all" } end
-    local groups = {}
-    for _, definition in ipairs(options[skill] or {}) do
-        for group in pairs(definition.groups) do
-            groups[group] = true
-        end
-    end
     local result = { "all" }
-    for group in pairs(groups) do
+    for group in pairs(groupsBySkill[skill] or {}) do
         result[#result + 1] = group
     end
     table.sort(result, function(a, b)

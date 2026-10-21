@@ -101,9 +101,8 @@ local function countPacket(inventory, chat)
             end
             remaining = take(chatClaims, normalized, remaining)
             if remaining > 0 then
-                local definition = trackerState.findById(change.itemId)
+                local definition = catalog.findById(change.itemId)
                     or catalog.find(change.name, directNames[normalized])
-                    or trackerState.findByName(change.name)
                 -- Invention materials and spirit gifts use chat-only reward paths.
                 -- Archaeology artefact popups can add directly to the inventory,
                 -- where there may be no matching chat event to count.

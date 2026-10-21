@@ -5,7 +5,7 @@ local persistence = require("Core/persistence")
 local trackerState = {}
 -- This module is the single owner of saved tracker state. UI and event modules
 -- call its functions instead of changing counts or settings directly.
-local data = { items = {}, ids = {}, order = 0, settings = {}, session = { days = {} } }
+local data = { items = {}, order = 0, settings = {}, session = { days = {} } }
 local accountId
 local ready = false
 local waitingSettings = {}
@@ -52,9 +52,8 @@ end
 
 local function save()
     -- A revision tells docked UI panels to redraw after persisted state changes.
-    local saved = persistence.save(data, accountId)
+    persistence.save(data, accountId)
     revision = revision + 1
-    return saved
 end
 
 function trackerState.open(id)
@@ -89,7 +88,7 @@ function trackerState.unload()
         sessionStats.close(data.session)
         persistence.save(data, accountId)
     end
-    data = { items = {}, ids = {}, order = 0, settings = {}, session = { days = {} } }
+    data = { items = {}, order = 0, settings = {}, session = { days = {} } }
     accountId, ready, waitingSettings = nil, false, {}
     elapsed, epochOffset = 0, nil
     generation = generation + 1
@@ -115,7 +114,7 @@ local function ensure(definition, source)
         }
         data.items[itemKey] = item
     end
-    return itemKey, item
+    return item
 end
 
 function trackerState.recordAuto(updates)
@@ -123,11 +122,10 @@ function trackerState.recordAuto(updates)
     local changed = false
     for _, update in ipairs(updates) do
         if update.amount > 0 then
-            local itemKey, item = ensure(update, update.source)
+            local item = ensure(update, update.source)
             item.count = item.count + update.amount
             if update.itemId then
                 item.itemId = update.itemId
-                data.ids[tostring(update.itemId)] = itemKey
             end
             data.order = data.order + 1
             item.order = data.order
@@ -142,26 +140,9 @@ function trackerState.recordAuto(updates)
     end
 end
 
-function trackerState.findById(itemId)
-    -- Item IDs learned from backpack gains give later chat rewards their icon.
-    local itemKey = data.ids[tostring(itemId)]
-    return itemKey and data.items[itemKey] or nil
-end
-
-function trackerState.findByName(name)
-    -- Name fallback supports chat rewards that do not provide an item ID.
-    local normalized = catalog.normalize(name)
-    for _, item in pairs(data.items) do
-        if not item.source and catalog.normalize(item.name) == normalized then
-            return item
-        end
-    end
-    return nil
-end
-
 function trackerState.setCount(itemKey, value)
     local item = data.items[itemKey]
-    if item then
+    if item and item.count ~= value then
         item.count = value
         data.order = data.order + 1
         item.order = data.order
@@ -171,24 +152,16 @@ end
 
 function trackerState.setGoal(itemKey, goal)
     local item = data.items[itemKey]
-    if item then
+    if item and item.goal ~= goal then
         item.goal = goal
         save()
     end
 end
 
 function trackerState.remove(itemKey)
+    if not data.items[itemKey] then return end
     data.items[itemKey] = nil
-    for id, linkedKey in pairs(data.ids) do
-        if linkedKey == itemKey then
-            data.ids[id] = nil
-        end
-    end
     save()
-end
-
-function trackerState.getCount(item)
-    return item.count
 end
 
 function trackerState.getItems()
@@ -228,10 +201,6 @@ function trackerState.tick()
     if ready then elapsed = elapsed + 0.02 end
 end
 
-function trackerState.getElapsedSecond()
-    return math.floor(elapsed)
-end
-
 function trackerState.observeTime(timestamp)
     if type(timestamp) ~= "number" or timestamp <= 0 then return end
     local previousDay = currentDay()
@@ -239,12 +208,16 @@ function trackerState.observeTime(timestamp)
     -- the most recent game-message timestamp.
     epochOffset = timestamp - elapsed
     local updatedDay = currentDay()
-    if ready and sessionStats.moveDay(data.session, previousDay, updatedDay) then
+    -- Only the undated bucket can be reassigned. A dated bucket is history,
+    -- even when a new chat timestamp crosses midnight.
+    if ready and previousDay == "Today"
+        and sessionStats.moveDay(data.session, previousDay, updatedDay) then
         save()
     end
 end
 
 function trackerState.setSetting(name, value)
+    if data.settings[name] == value then return end
     data.settings[name] = value
     if not ready then
         waitingSettings[name] = value

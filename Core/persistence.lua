@@ -16,7 +16,7 @@ function persistence.load(accountId)
     -- Start from a complete empty shape. Saved fields are copied in only after
     -- validation so an invalid record cannot prevent the tracker from loading.
     local saved = PersistentDB:GetStructuredData(storageKey(accountId))
-    local data = { items = {}, ids = {}, order = 0, settings = {}, session = { days = {} } }
+    local data = { items = {}, order = 0, settings = {}, session = { days = {} } }
     if type(saved) ~= "table" then
         return data
     end
@@ -67,10 +67,13 @@ function persistence.load(accountId)
         end
     end
     if type(saved.ids) == "table" then
-        -- Learned item IDs are valid only while their matching resource exists.
+        -- Older records stored a second ID-to-item map. Keep any ID missing
+        -- from its item row, then save only the row on the next data change.
         for id, itemKey in pairs(saved.ids) do
-            if type(itemKey) == "string" and data.items[itemKey] then
-                data.ids[tostring(id)] = itemKey
+            local itemId = tonumber(id)
+            local item = type(itemKey) == "string" and data.items[itemKey]
+            if item and not item.itemId and nonNegativeInteger(itemId) then
+                item.itemId = itemId
             end
         end
     end

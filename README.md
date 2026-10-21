@@ -18,7 +18,7 @@ The tracker requires **tracking access** to save counts, goals, settings, sessio
 
 Use the icon tabs at the top to choose a skill. The left and right arrows reveal more skills when they do not all fit. **All** shows every visible skill. The buttons below the tabs change the sort order between **Recent**, **A-Z**, and **Count**. Some skills also offer a group filter. Archaeology lists materials first, followed by an **ARTEFACTS** section.
 
-Each row shows a resource, its count, and an icon. When RuneScape does not provide an item icon, the tracker uses the icon for the related skill. Select a row to open its item controls:
+Each row shows a resource, its count, and an icon. The tracker uses an item icon when it has an item ID, and RuneScape's sprite icon for catalogued Invention materials. Resources without either use the icon for their skill. Select a row to open its item controls:
 
 - Enter a number and select the pencil to set the count.
 - Enter a number and select the star to set a goal.

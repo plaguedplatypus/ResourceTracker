@@ -117,20 +117,34 @@ local function formatCount(value)
     return string.format("%.0f", value)
 end
 
+local function configId(configName, name)
+    local ok, obj = pcall(function() return config.Obj[configName] end)
+    if ok and obj and catalog.normalize(obj.name) == name then return obj.id end
+end
+
 local function iconId(item)
-    -- Backpack events provide an object ID. Chat-only rewards need a cautious
-    -- name lookup, cached after the first attempt to avoid repeated config work.
+    -- Backpack gains provide an object ID. Chat rewards use a catalogued ID
+    -- or a cached exact-name config lookup.
     if item.itemId then return item.itemId end
+    local definition = catalog.find(item.name, item.skill)
+    if definition and definition.itemId then return definition.itemId end
     local name = catalog.normalize(item.name)
     if iconIds[name] == nil then
         local configName = item.name:upper():gsub("[^A-Z0-9]+", "_")
-        local ok, found = pcall(function()
-            local obj = config.Obj[configName]
-            if obj and catalog.normalize(obj.name) == name then return obj.id end
-        end)
+        local found = configId(configName, name)
+        if not found then
+            -- Salvage configs put the type first and the size last. Their IDs
+            -- are scattered, so use the config name rather than an ID range.
+            local size, shape, metal = name:match("^(%a+) (%a+) (%a+) salvage$")
+            if size then
+                configName = shape:upper() .. "_SALVAGE_" .. metal:upper()
+                    .. "_" .. size:upper()
+                found = configId(configName, name)
+            end
+        end
         -- Config names often match item names, but only an exact display-name
         -- match is safe for a chat reward that supplies no object ID.
-        iconIds[name] = ok and found or false
+        iconIds[name] = found or false
     end
     return iconIds[name] or nil
 end
@@ -196,7 +210,7 @@ local function itemsFor(settings)
             return not a.artefact
         end
         if settings.sort == "count" then
-            local aCount, bCount = state.getCount(a.item), state.getCount(b.item)
+            local aCount, bCount = a.item.count, b.item.count
             if aCount ~= bCount then return aCount > bCount end
         elseif settings.sort ~= "name" and a.item.order ~= b.item.order then
             return a.item.order > b.item.order
@@ -406,7 +420,7 @@ drawRows = function(settings, revealSelected)
             artefactHeaderAdded = true
         end
         local itemKey, item = entry.itemKey, entry.item
-        local count = state.getCount(item)
+        local count = item.count
         local hasGoal = settings.showGoals ~= false and item.goal ~= nil
         local rowHeight = hasGoal and 35 or 23
         local row = ui.Layer.new(list.content)
@@ -421,16 +435,23 @@ drawRows = function(settings, revealSelected)
         background.clickthrough = true
         local iconWidth = settings.showIcons == false and 2 or 20
         if settings.showIcons ~= false then
-            local objectId = iconId(item)
-            if objectId then
+            local definition = item.skill == "invention" and catalog.find(item.name, item.skill)
+            local spriteId = definition and definition.spriteId
+            local objectId
+            if not spriteId then objectId = iconId(item) end
+            if spriteId or objectId then
                 local icon = ui.Sprite.new(row)
                 icon:SetPos(2, 2)
                 icon:SetSize(18, 18)
-                icon:SetAssociatedObject(objectId)
-                icon.associatedObjectQuantityMode = ui.ObjectQuantityDisplayMode.NEVER
+                if spriteId then
+                    icon.spriteID = spriteId
+                else
+                    icon:SetAssociatedObject(objectId)
+                    icon.associatedObjectQuantityMode = ui.ObjectQuantityDisplayMode.NEVER
+                end
                 icon.clickthrough = true
             else
-                -- Chat rewards may name an item without supplying an ObjType.
+                -- Some chat rewards have neither an object ID nor a material sprite.
                 local skillIcon = icons[item.skill]
                 local serenImage
                 if item.skill == "seren" and Plugin.resources then
