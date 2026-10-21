@@ -1,0 +1,126 @@
+local decisions = require("Core/counting")
+
+local inventoryTracker = {}
+-- Each inventory keeps its own last snapshot so one server packet can be
+-- compared across inventory, bank, and material-storage containers.
+local baselines = {}
+local inGame = true
+local notedIds = {}
+
+local function isNoted(obj)
+    local noted = notedIds[obj.id]
+    if noted ~= nil then return noted end
+
+    -- ObjStackType.ALWAYS is 1 and NEVER is 2 in the published API.
+    -- Treat stackable raw fish and stackable variants of ordinarily
+    -- unstackable resources as notes; ObjType has no explicit note flag.
+    noted = false
+    if obj.stackType == 1 then
+        local configName = obj.name:upper():gsub("[^A-Z0-9]+", "_")
+        local ok, ordinary = pcall(function() return config.Obj[configName] end)
+        noted = obj.name:lower():sub(1, 4) == "raw "
+            or (ok and ordinary and ordinary.name == obj.name
+                and ordinary.id ~= obj.id and ordinary.stackType == 2)
+    end
+    notedIds[obj.id] = noted == true
+    return notedIds[obj.id]
+end
+
+local function snapshot(invType)
+    -- Return item ID, name, and stack quantity for every occupied slot.
+    local inv = Inventory.Find(invType)
+    -- The live inventory proxy exposes isValid; checking valid discarded every snapshot.
+    if not inv or not inv.isValid then
+        return nil
+    end
+    local items = {}
+    local slots = inv:GetSlots()
+    -- Empty inventory slots may be holes in the returned array.
+    for index = 1, inv.slotCount do
+        local slot = slots[index]
+        if slot and slot.obj then
+            local id = slot.obj.id
+            local item = items[id]
+            if item then
+                item.count = item.count + slot.count
+            else
+                items[id] = {
+                    name = slot.obj.name,
+                    count = slot.count,
+                    noted = isNoted(slot.obj)
+                }
+            end
+        end
+    end
+    return items
+end
+
+function inventoryTracker.onAdded(event)
+    -- Adding a container establishes its baseline before any gain is counted.
+    if inGame then
+        baselines[event.inv.id] = snapshot(event.inv)
+    end
+end
+
+function inventoryTracker.onUpdated(event)
+    if not inGame then
+        return
+    end
+    local invType = event.inv
+    local current = snapshot(invType)
+    if not current then
+        baselines[invType.id] = nil
+        return
+    end
+    local previous = baselines[invType.id]
+    baselines[invType.id] = current
+    if not previous then
+        -- The first population after login or container discovery is never a gain.
+        return
+    end
+
+    -- Compare the current snapshot with the previous one by item ID. The
+    -- counting module decides whether a positive inventory change is a gain.
+    local ids = {}
+    for id in pairs(previous) do ids[id] = true end
+    for id in pairs(current) do ids[id] = true end
+    for id in pairs(ids) do
+        local before = previous[id] and previous[id].count or 0
+        local after = current[id] and current[id].count or 0
+        local delta = after - before
+        local backpack = invType.id == config.Inv.INV.id
+        if (backpack and delta ~= 0) or (not backpack and delta < 0) then
+            local item = current[id] or previous[id]
+            decisions.observeInventory({
+                backpack = backpack,
+                containerId = invType.id,
+                itemId = id,
+                name = item.name,
+                delta = delta,
+                noted = item.noted
+            })
+        end
+    end
+end
+
+function inventoryTracker.onRemoved(event)
+    -- A container can later be recreated with unrelated contents.
+    baselines[event.inv.id] = nil
+end
+
+function inventoryTracker.onGameStateChanged(event)
+    baselines = {}
+    decisions.discardPending()
+    inGame = event.newState == GameState.GAME
+    -- Wait for a fresh inventory event after a transition.
+end
+
+function inventoryTracker.seedBackpack()
+    local backpack = config.Inv.INV
+    local items = snapshot(backpack)
+    if items then
+        baselines[backpack.id] = items
+    end
+end
+
+return inventoryTracker
