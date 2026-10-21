@@ -31,6 +31,12 @@ local function label(owner, content, x, y, width, align, colour)
     return value
 end
 
+local function title(owner, content, x, y, width)
+    local value = label(owner, content, x, y, width, nil, titleColour)
+    value.font = id.Font.CINZEL_13PT_BOLD
+    return value
+end
+
 local function duration(seconds)
     seconds = math.max(0, math.floor(seconds))
     return string.format("%02d:%02d:%02d", seconds // 3600, (seconds // 60) % 60, seconds % 60)
@@ -63,8 +69,8 @@ local function drawTable(report, y)
         background:SetPos(2, y)
         background:SetSize(width - 4, 20)
         background.fill = true
-        background.colour = index % 2 == 0 and Vector4.new(0, 0, 0, 0.2)
-            or Vector4.new(0, 0, 0, 0.75)
+        background.colour = index % 2 == 0 and Vector4.new(0, 0, 0, 0.1)
+            or Vector4.new(0, 0, 0, 0.3)
         background.clickthrough = true
         label(view.content, item.name, 7, y + 1, itemWidth - 2)
         label(view.content, formatCount(item.count), countX, y + 1,
@@ -77,20 +83,27 @@ local function drawTable(report, y)
 end
 
 local function buildSettings()
-    -- These controls update the same settings used by the tracker.
-    view:AddTitle("Resource Tracker settings")
+    -- Keep the two settings groups side by side so the normal settings panel
+    -- can display every control without a scroll bar.
     local settings = state.getSettings()
-    view:AddTitle("Display")
-    view:AddCheckboxButton({
+    local width = view.contentWidth
+    local leftX, gap = 6, 16
+    local columnWidth = math.floor((width - leftX * 2 - gap) / 2)
+    local rightX = leftX + columnWidth + gap
+    local controlsY = 66
+
+    title(view.content, "RESOURCE TRACKER SETTINGS", leftX, 4, width - leftX * 2)
+    title(view.content, "DISPLAY", leftX, 38, columnWidth)
+    prettyui.CheckboxButton.new(view.content, {
         { text = "Show item icons", value = "showIcons", selected = settings.showIcons ~= false },
         { text = "Show goals", value = "showGoals", selected = settings.showGoals ~= false }
     }, {
+        x = leftX, y = controlsY, width = columnWidth,
         onChange = function(_, _, name, selected)
             trackerPanel.queue(function() state.setSetting(name, selected) end)
         end
     })
 
-    view:AddTitle("Visible skills")
     local choices = {}
     local hidden = settings.hiddenSkills or {}
     for _, category in ipairs(catalog.getCategories()) do
@@ -100,7 +113,9 @@ local function buildSettings()
             }
         end
     end
-    view:AddCheckboxButton(choices, {
+    title(view.content, "VISIBLE TABS", rightX, 38, columnWidth)
+    prettyui.CheckboxButton.new(view.content, choices, {
+        x = rightX, y = controlsY, width = columnWidth,
         onChange = function(_, _, skill, selected)
             trackerPanel.queue(function()
                 local nextHidden = {}
@@ -120,6 +135,7 @@ local function buildSettings()
             end)
         end
     })
+    view:SetContentHeight(view.root.height)
 end
 
 local function buildSession()
@@ -147,28 +163,24 @@ local function buildHistory()
     local hasHistory = #days > 0
     if not hasHistory then days = { "No saved days" } end
     if historyIndex > #days then historyIndex = 1 end
-    -- The client List component has a dedicated dropdown style. It owns the
-    -- popup and scroll bar, so it is not clipped by the report's SimpleView.
-    local picker = ui.List.new(root)
-    picker.stylesheetID = id.StyleSheet.DROPDOWN_DEFAULT
-    picker:SetPos(6, 31)
+    -- Keep the picker outside the report view so its popup is not clipped.
+    -- PrettyUI's ComboBox also handles client builds that interpret selected
+    -- entry IDs as sorted positions rather than their explicit values.
     local pickerWidth = parent.width - 12
     if pickerWidth > 220 then pickerWidth = 220 end
-    picker:SetSize(pickerWidth, 22)
-    picker.entryHeight = 22
-    picker.dropdownMaxVisibleEntries = 8
-    picker:SetEntries(days, historyIndex)
-    if hasHistory then
-        picker:Subscribe(ui.Hook.ONSELECTIONCHANGED, function(_, entryId, selected)
-            if selected == true or selected == 1 then
-                historyIndex = entryId
-                rebuild = true
-            end
-            return true
-        end)
-    else
-        picker:SetEntryEnabled(1, false)
+    local choices = {}
+    for index, day in ipairs(days) do
+        choices[#choices + 1] = { text = day, id = index }
     end
+    prettyui.ComboBox.new(root, {
+        x = 6, y = 31, width = pickerWidth, height = 22,
+        entries = choices, selectedID = historyIndex,
+        maxVisibleEntries = 8, disabled = not hasHistory,
+        onChange = function(_, entryId)
+            historyIndex = entryId
+            rebuild = true
+        end
+    })
     prettyui.SimpleButton.new(root, historyClearArmed and "Confirm" or "Clear history", function()
         if not hasHistory then return end
         if historyClearArmed then

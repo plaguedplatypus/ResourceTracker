@@ -346,18 +346,17 @@ local function drawEditor(owner, itemKey, item, y, width)
 end
 
 drawRows = function(settings, revealSelected)
-    -- Recreate the scroll view so row height, selection, and artefact headings
-    -- match the latest settings without leaving old interactive components.
+    -- Keep PrettyUI's scroll view alive. Recreating it during a server update
+    -- can collide with its nested dynamic layers before the client releases
+    -- the old viewport. Delete only the resource rows instead.
     if not root or root.parent ~= parent or not list or not list.root then
         return false
     end
     marquee = nil
     clearEditor()
     local scroll = list.scrollY
-    local x, y, width, height = list.root.x, list.root.y, list.root.width, list.root.height
-    list:Destroy()
-    list = prettyui.SimpleView.new(root, { x = x, y = y, width = width,
-        height = height, scrollStep = 24 })
+    local height = list.root.height
+    list.content:DeleteAll()
     local entries = itemsFor(settings)
     local showArtefactSection = settings.category == "archaeology"
     local hasArtefacts = false
@@ -418,7 +417,7 @@ drawRows = function(settings, revealSelected)
         background.fill = true
         background.colour = selected == itemKey and Vector4.new(0.10, 0.085, 0.06, 0.7)
             or (index % 2 == 0 and Vector4.new(0, 0, 0, 0.2)
-                or Vector4.new(0, 0, 0, 0.5))
+                or Vector4.new(0, 0, 0, 0.4))
         background.clickthrough = true
         local iconWidth = settings.showIcons == false and 2 or 20
         if settings.showIcons ~= false then

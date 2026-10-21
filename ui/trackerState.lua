@@ -212,13 +212,10 @@ function trackerState.getSessionDays()
 end
 
 function trackerState.getSessionDay(key)
-    -- Today is a temporary display key. Once chat has supplied a UTC date,
-    -- show the dated record rather than an empty temporary bucket.
-    local actualDay = currentDay()
-    if key == "Today" and actualDay ~= "Today" then
-        key = actualDay
-    end
-    return sessionStats.day(data.session, key, elapsed, actualDay)
+    -- Keep a saved temporary Today record addressable. It is normally moved to
+    -- its UTC date when chat provides a timestamp, but the picker must still
+    -- display it if a prior client session left one behind.
+    return sessionStats.day(data.session, key, elapsed, currentDay())
 end
 
 function trackerState.clearHistory()
