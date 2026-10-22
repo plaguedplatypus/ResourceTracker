@@ -29,14 +29,14 @@ return {
         ["rabbit foot"] = 10134,
         ["jackalope antlers"] = 60789,
         ["grenwall spikes"] = 12539,
-        ["shiny shell chippings"] = false,
+        ["shiny shell chippings"] = 37777,
     },
 
     ["anachronia bgh"] = {
         ["dinosaur bones"] = 48075,
         ["dinosaur scale"] = 48028,
         ["dinosaur hide"] = 48022,
-        ["damaged dinosaur hide"] = false,
+        ["damaged dinosaur hide"] = 48024,
         ["raw arcane apoterrasaur meat"] = 47948,
         ["raw scimitops meat"] = 47952,
         ["raw bagrada rex meat"] = 47956,
@@ -49,8 +49,8 @@ return {
     },
 
     ["havenhythe bgh"] = {
-        ["apex hide"] = false,
-        ["raw giant chinchompa meat"] = false,
-        ["raw giant kebbit meat"] = false,
+        ["apex hide"] = 60776,
+        ["raw giant chinchompa meat"] = 60764,
+        ["raw giant kebbit meat"] = 60769,
     },
 }

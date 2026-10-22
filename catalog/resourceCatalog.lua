@@ -65,6 +65,7 @@ for site, names in pairs(artefacts) do
     end
 end
 local grouped = {
+    mining = mining,
     farming = require("catalog/farming"),
     invention = require("catalog/invention"),
     divination = require("catalog/divination"),
@@ -132,16 +133,9 @@ function catalog.find(name, skillHint)
     if skillHint == "fishing" or skillHint == "woodcutting" then
         return { name = name, skill = skillHint, groups = {} }
     end
-    if skillHint == "farming" or skillHint == "invention" or skillHint == "archaeology" then
+    if skillHint == "farming" or skillHint == "invention" or skillHint == "archaeology"
+        or skillHint == "mining" then
         return nil
-    end
-    if normalized:sub(-4) == " ore" then
-        return { name = name, skill = "mining", groups = {} }
-    end
-    for _, word in ipairs(mining.words) do
-        if hasWord(normalized, word) then
-            return { name = name, skill = "mining", groups = {} }
-        end
     end
     for _, word in ipairs(woodcutting.words) do
         if hasWord(normalized, word) then

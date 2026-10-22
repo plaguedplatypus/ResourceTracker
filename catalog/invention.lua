@@ -82,7 +82,6 @@ return {
         ["delicate parts"] = id.Sprite.INVENTION_ICON_DELICATE_PARTS or false,
         ["flexible parts"] = id.Sprite.INVENTION_ICON_FLEXIBLE_PARTS or false,
         ["head parts"] = id.Sprite.INVENTION_ICON_HEAD_PARTS or false,
-        ["insulated parts"] = false,
         ["magic parts"] = id.Sprite.INVENTION_ICON_MAGIC_PARTS or false,
         ["metallic parts"] = id.Sprite.INVENTION_ICON_METALLIC_PARTS or false,
         ["organic parts"] = id.Sprite.INVENTION_ICON_ORGANIC_PARTS or false,
@@ -94,7 +93,6 @@ return {
         ["spiritual parts"] = id.Sprite.INVENTION_ICON_SPIRITUAL_PARTS or false,
         ["stave parts"] = id.Sprite.INVENTION_ICON_STAVE_PARTS or false,
         ["tensile parts"] = id.Sprite.INVENTION_ICON_TENSILE_PARTS or false,
-        ["variable parts"] = false,
         ["junk"] = id.Sprite.INVENTION_ICON_JUNK or false,
     },
 }

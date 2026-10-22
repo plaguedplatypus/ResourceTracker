@@ -24,7 +24,7 @@ return {
         ["Nasturtium"] = 6012,
         ["Woad leaves"] = 1793,
         ["Limpwurt root"] = 225,
-        ["Starbloom flower"] = false,
+        ["Starbloom flower"] = 58971,
     },
 
     hops = {
@@ -76,7 +76,7 @@ return {
     },
 
     nightshade = {
-        ["Mourning lily"] = false,
+        ["Mourning lily"] = 63992,
     },
 
     mushrooms = {
@@ -84,7 +84,7 @@ return {
         ["Morchella mushroom"] = 21622,
         ["Stinkfly"] = 48712,
         ["Tombshroom"] = 48711,
-        ["Bogwart"] = false,
+        ["Bogwart"] = 63990,
     },
 
     herbs = {

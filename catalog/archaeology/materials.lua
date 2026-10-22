@@ -126,9 +126,9 @@ return {
     ["Warforged bronze"] = { id = 49482, sites = { "Warforge" } },
     ["Yu'biusk clay"] = { id = 49484, sites = { "Warforge" } },
     -- Moonrise
-    ["Banded limestone"] = { sites = { "Moonrise" } },
-    ["Burnt umber"] = { sites = { "Moonrise" } },
-    ["Cashmere"] = { sites = { "Moonrise" } },
-    ["Ivory"] = { sites = { "Moonrise" } },
-    ["Triskelion"] = { sites = { "Moonrise" } },
+    ["Banded limestone"] = { id = 61707, sites = { "Moonrise" } },
+    ["Burnt umber"] = { id = 61699, sites = { "Moonrise" } },
+    ["Cashmere"] = { id = 61703, sites = { "Moonrise" } },
+    ["Ivory"] = { id = 61701, sites = { "Moonrise" } },
+    ["Triskelion"] = { id = 61705, sites = { "Moonrise" } },
 }

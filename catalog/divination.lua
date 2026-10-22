@@ -14,16 +14,16 @@ return {
         ["radiant energy"] = 29322,
         ["luminous energy"] = 29323,
         ["incandescent energy"] = 29324,
-        ["positive energy"] = false,
-        ["negative energy"] = false,
-        ["ancestral energy"] = false,
-        ["remnant energy"] = false,
+        ["positive energy"] = 38612,
+        ["negative energy"] = 38617,
+        ["ancestral energy"] = 38622,
+        ["remnant energy"] = 63918,
     },
 
     chronicles = {
         ["chronicle fragment"] = 29293,
         ["enhanced chronicle fragment"] = 51489,
-        ["elder chronicle"] = false,
-        ["enhanced elder chronicle"] = false,
+        ["elder chronicle"] = 31056,
+        ["enhanced elder chronicle"] = 51488,
     },
 }
