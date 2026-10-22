@@ -76,7 +76,7 @@ return {
     },
 
     nightshade = {
-        ["Mourning lily"] = 63992,
+        ["Mourning lily"] = 64298,
     },
 
     mushrooms = {
@@ -84,7 +84,7 @@ return {
         ["Morchella mushroom"] = 21622,
         ["Stinkfly"] = 48712,
         ["Tombshroom"] = 48711,
-        ["Bogwart"] = 63990,
+        ["Bogwart"] = 64296,
     },
 
     herbs = {

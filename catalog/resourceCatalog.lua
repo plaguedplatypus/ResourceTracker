@@ -33,7 +33,7 @@ function catalog.normalize(name)
     return normalized
 end
 
-local function add(name, skill, groups, itemId, spriteId, artefact)
+local function add(name, skill, groups, itemId, spriteId, artefact, aliases)
     local normalized = catalog.normalize(name)
     assert(not byName[normalized], "Duplicate resource: " .. name)
     local definition = {
@@ -50,6 +50,11 @@ local function add(name, skill, groups, itemId, spriteId, artefact)
         groupsBySkill[skill][group] = true
     end
     byName[normalized] = definition
+    for _, alias in ipairs(aliases or {}) do
+        local aliasName = catalog.normalize(alias)
+        assert(not byName[aliasName], "Duplicate resource alias: " .. alias)
+        byName[aliasName] = definition
+    end
     if itemId then
         assert(not byId[itemId], "Duplicate resource ID: " .. itemId)
         byId[itemId] = definition
@@ -66,6 +71,8 @@ for site, names in pairs(artefacts) do
 end
 local grouped = {
     mining = mining,
+    woodcutting = woodcutting,
+    fishing = fishing,
     farming = require("catalog/farming"),
     invention = require("catalog/invention"),
     divination = require("catalog/divination"),
@@ -76,6 +83,8 @@ for skill, sections in pairs(grouped) do
         for name, value in pairs(entries) do
             if skill == "invention" then
                 add(name, skill, { group }, nil, value)
+            elseif type(value) == "table" then
+                add(name, skill, { group }, value.id, nil, nil, value.aliases)
             else
                 add(name, skill, { group }, value)
             end
@@ -87,22 +96,17 @@ function catalog.findById(itemId)
     return byId[itemId]
 end
 
-local function hasWord(name, word)
-    return name == word or name:sub(1, #word + 1) == word .. " "
-        or name:sub(-#word - 1) == " " .. word
-        or name:find(" " .. word .. " ", 1, true) ~= nil
-end
-
 function catalog.find(name, skillHint)
     local normalized = catalog.normalize(name)
     if normalized == "" then
         return nil
     end
     if skillHint == "seren" then
-        -- Seren can gift unrelated rewards. Count only recognized resources.
+        -- The Seren chat message confirms the gift even when it is not a
+        -- gathering resource. Keep known item IDs for their icons.
         local known = byName[normalized]
-        return known and { name = known.name, skill = "seren", groups = {},
-            itemId = known.itemId } or nil
+        return { name = known and known.name or name, skill = "seren", groups = {},
+            itemId = known and known.itemId or nil }
     end
     local known = byName[normalized]
     if known and (not skillHint or known.skill == skillHint) then
@@ -128,30 +132,14 @@ function catalog.find(name, skillHint)
             artefact = true
         }
     end
-    -- Direct gathering messages already identify their skill. Their item names
-    -- may be absent from the finite resource list, so keep that classification.
-    if skillHint == "fishing" or skillHint == "woodcutting" then
-        return { name = name, skill = skillHint, groups = {} }
+    -- Catch messages can omit "Raw" even though the backpack item includes it.
+    if skillHint == "fishing" then
+        local raw = byName["raw " .. normalized]
+        return raw and raw.skill == "fishing" and raw or nil
     end
     if skillHint == "farming" or skillHint == "invention" or skillHint == "archaeology"
-        or skillHint == "mining" then
+        or skillHint == "mining" or skillHint == "woodcutting" then
         return nil
-    end
-    for _, word in ipairs(woodcutting.words) do
-        if hasWord(normalized, word) then
-            return { name = name, skill = "woodcutting", groups = {} }
-        end
-    end
-    if normalized:sub(1, 4) == "raw " then
-        local fish = normalized:sub(5)
-        for _, namePart in ipairs(fishing.names) do
-            if fish == namePart or fish:sub(-#namePart) == namePart then
-                return { name = name, skill = "fishing", groups = {} }
-            end
-        end
-    end
-    if normalized:sub(1, 8) == "leaping " or normalized == "algae" then
-        return { name = name, skill = "fishing", groups = {} }
     end
     return nil
 end

@@ -17,7 +17,7 @@ return {
         ["positive energy"] = 38612,
         ["negative energy"] = 38617,
         ["ancestral energy"] = 38622,
-        ["remnant energy"] = 63918,
+        ["remnant energy"] = 63915,
     },
 
     chronicles = {

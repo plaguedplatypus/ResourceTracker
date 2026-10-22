@@ -24,7 +24,9 @@ local function update(name, quantity, skill, source)
     if not definition or not quantity or quantity <= 0 then
         return nil
     end
-    return { name = definition.name, skill = definition.skill, amount = quantity, source = source }
+    -- Bank-delivered rewards have no backpack item to replace an old saved icon ID.
+    return { name = definition.name, skill = definition.skill, amount = quantity,
+        source = source, itemId = definition.itemId }
 end
 
 local function splitEntries(text, skill, source)

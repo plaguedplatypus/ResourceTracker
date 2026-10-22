@@ -42,7 +42,7 @@ return {
         ["Limestone"] = 3211,
         ["Rune essence"] = 1436,
         ["Pure essence"] = 7936,
-        ["Exalted essence"] = 63938,
+        ["Exalted essence"] = 63935,
         ["Sandstone (1kg)"] = 6971,
         ["Sandstone (2kg)"] = 6973,
         ["Sandstone (5kg)"] = 6975,
