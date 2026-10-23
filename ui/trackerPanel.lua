@@ -331,6 +331,8 @@ local function drawEditor(owner, itemKey, item, y, width)
         panel.queue(function() state.setGoal(itemKey, nil); armed = nil end)
     end, 44, item.goal == nil)
 
+    -- Reset and remove arm on the first click and apply on the second.
+    -- Selecting another row clears the armed action.
     addImageIcon("reset_count", "Reset count (click twice)", function()
         if armed == "reset" then
             panel.queue(function()

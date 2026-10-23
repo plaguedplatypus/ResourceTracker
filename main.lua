@@ -32,6 +32,8 @@ function PluginShutdown()
     trackerState.unload()
 end
 
+-- Inventory and chat handlers collect observations from a server packet.
+-- ServerLogic reconciles them before the panels read the saved tracker state.
 Event.InventoryAdded.Subscribe("resourceTrackerInventoryAdded", inventoryTracker.onAdded)
 Event.InventoryUpdated.Subscribe("resourceTrackerInventoryUpdated", inventoryTracker.onUpdated)
 Event.InventoryRemoved.Subscribe("resourceTrackerInventoryRemoved", inventoryTracker.onRemoved)

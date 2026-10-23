@@ -28,6 +28,9 @@ local function take(pool, name, amount)
 end
 
 local function countPacket(inventory, chat)
+    -- Chat-owned rewards count from their message; direct chat only helps
+    -- identify a backpack gain. Remove matched withdrawals, conversions, and
+    -- chat-owned rewards before counting any remaining backpack increase.
     local withdrawals = {}
     local backpackConversions = {}
     local chatClaims = {}

@@ -5,6 +5,8 @@ local woodcutting = require("catalog/woodcutting")
 local fishing = require("catalog/fishing")
 
 local catalog = {}
+-- Skill files own resource definitions. Build name and alias lookups for chat,
+-- item ID lookups for backpack gains, and groups for the skill filters.
 local byName = {}
 local byId = {}
 local groupsBySkill = {}

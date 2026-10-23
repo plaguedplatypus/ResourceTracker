@@ -9,6 +9,8 @@ local data = { items = {}, order = 0, settings = {}, session = { days = {} } }
 local accountId
 local ready = false
 local waitingSettings = {}
+-- A revision redraws changed data; a generation means login or logout has
+-- replaced the whole record, so panels must also clear their selection.
 local revision = 0
 local generation = 0
 -- The client does not expose Lua's standard clock. Logic events run at 50 Hz,
