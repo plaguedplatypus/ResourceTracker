@@ -3,6 +3,7 @@ local artefacts = require("catalog/archaeology/artefacts")
 local mining = require("catalog/mining")
 local woodcutting = require("catalog/woodcutting")
 local fishing = require("catalog/fishing")
+local serenSpirit = require("catalog/serenSpirit")
 
 local catalog = {}
 -- Skill files own resource definitions. Build name and alias lookups for chat,
@@ -93,6 +94,12 @@ for skill, sections in pairs(grouped) do
             end
         end
     end
+end
+
+-- Add only gifts absent from the skill catalogs above. Their empty group list
+-- keeps the Spirits tab free of a group picker; salvage uses its icon lookup.
+for name, itemId in pairs(serenSpirit) do
+    add(name, "seren", {}, itemId)
 end
 
 -- Inventory deltas use object IDs, which avoid ambiguous display names.

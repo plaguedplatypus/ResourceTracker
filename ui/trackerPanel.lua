@@ -646,6 +646,13 @@ local function build()
         end
     end
     local tabWidth, tabHeight = 28, 29
+    -- Continue the tabs' lower edge across unused space in a wide dock.
+    local tabEdge = ui.Rectangle.new(root)
+    tabEdge:SetPos(0, 32)
+    tabEdge:SetSize(width, 1)
+    tabEdge.fill = true
+    tabEdge.colour = Vector4.new(0.49, 0.39, 0.22, 1)
+    tabEdge.clickthrough = true
     -- Reserve one fixed tab for the separate session window. Skill tabs still
     -- scroll, but the report button stays reachable at every panel width.
     local slots = math.max(1, math.floor((width - 60) / tabWidth))
@@ -691,10 +698,10 @@ local function build()
         end)
     end
     -- Only show an arrow when tabs are available beyond that edge.
-    if tabOffset > 0 then addArrow("left", 1, -1) end
+    if tabOffset > 0 then addArrow("left", 30, -1) end
     if tabOffset < maxOffset then addArrow("right", width - 15, 1) end
     local sessionTab = ui.Layer.new(root)
-    sessionTab:SetPos(16, 3)
+    sessionTab:SetPos(1, 3)
     sessionTab:SetSize(tabWidth, tabHeight)
     local sessionBackground = ui.Sprite.new(sessionTab)
     sessionBackground:SetSize(tabWidth, tabHeight)

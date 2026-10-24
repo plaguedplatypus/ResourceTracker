@@ -1,0 +1,42 @@
+-- Seren spirits roll the rare drop table and can advance to its super rare table.
+-- Resources in other skill catalogs and salvage are resolved by their existing lookups.
+return {
+    -- Rare table
+    ["Uncut dragonstone"] = 1631,
+    ["Tooth half of a key"] = 985,
+    ["Loop half of a key"] = 987,
+    ["Rune arrowheads"] = 44,
+    ["Catalytic anima stone"] = 54019,
+    ["Teak plank"] = 8780,
+    ["Dragon bones"] = 536,
+    ["Dragon helm"] = 1149,
+    ["Dragon longsword"] = 1305,
+    ["Off-hand dragon longsword"] = 25740,
+    ["Molten glass"] = 1775,
+    ["Runite stone spirit"] = 44808,
+
+    -- Super rare table. Shared rewards are listed only once, above.
+    ["Hazelmere's signet ring"] = 39814,
+    ["Blurberry Special"] = 2064,
+    ["Cheese+tom batta"] = 2259,
+    ["Shield left half"] = 2366,
+    ["Dragon spear"] = 1249,
+    ["Hardened dragon bones"] = 35008,
+    ["Onyx bolt tips"] = 9194,
+    ["Ciku seed"] = 48769,
+    ["Golden dragonfruit seed"] = 48764,
+    ["Uncut diamond"] = 1617,
+    ["Soul rune"] = 566,
+    ["Light animica stone spirit"] = 44814,
+    ["Dark animica stone spirit"] = 44815,
+    ["Primal stone spirit"] = 57174,
+    ["Crystal key"] = 989,
+    ["Ectoplasm"] = 55336,
+    ["Wine of Saradomin"] = 28256,
+    ["Starbloom flower seed"] = 58976,
+    ["Distraction & Diversion reset token (daily)"] = 27234,
+    ["Distraction & Diversion reset token (weekly)"] = 27235,
+    ["Distraction & Diversion reset token (monthly)"] = 27236,
+    ["Vecna skull"] = 20667,
+    ["Coins"] = 995,
+}
