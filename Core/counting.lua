@@ -28,8 +28,9 @@ local function take(pool, name, amount)
 end
 
 local function countPacket(inventory, chat)
-    -- Chat-owned rewards count from their message; direct chat only helps
-    -- identify a backpack gain. Remove matched withdrawals, conversions, and
+    -- Chat-owned rewards count from their message
+    -- direct chat only helps identify a backpack gain. 
+    -- Remove matched withdrawals, conversions, and
     -- chat rewards that can overlap the backpack before counting a gain.
     local withdrawals = {}
     local backpackConversions = {}
@@ -76,8 +77,8 @@ local function countPacket(inventory, chat)
                     directNames["raw " .. name] = entry.skill
                 end
             else
-                -- Archaeology and Farming skillcape chat can describe backpack
-                -- items. Bank deliveries, including Boon, cannot overlap a
+                -- Archaeology and Farming skillcape chat can describe backpack items. 
+                -- Bank deliveries, including Boon, cannot overlap a
                 -- direct backpack gain of the same resource.
                 if result.method == "archaeology" or result.method == "farming" then
                     chatClaims[name] = (chatClaims[name] or 0) + entry.amount
@@ -108,8 +109,8 @@ local function countPacket(inventory, chat)
                     remaining = remaining - matched
                 end
             end
-            -- A noted withdrawal changes the inventory item ID. Match only a
-            -- witnessed bank loss with the same name, capped by its quantity.
+            -- A noted withdrawal changes the inventory item ID. 
+            -- Match only a witnessed bank loss with the same name, capped by its quantity.
             for _, withdrawal in ipairs(withdrawals) do
                 if withdrawal.bank and withdrawal.name == normalized then
                     local matched = math.min(withdrawal.amount, remaining)
@@ -165,8 +166,8 @@ local function countPacket(inventory, chat)
         end
     end
 
-    -- Some metal-bank messages name the ore but omit its quantity. Use the
-    -- bank increase when transmitted, after visible deposits and quantified chat.
+    -- Some metal-bank messages name the ore but omit its quantity.
+    -- Use the bank increase when transmitted, after visible deposits and quantified chat.
     local metalGains = {}
     for _, change in ipairs(inventory) do
         if change.containerId == config.Inv.METAL_BANK.id and change.delta > 0 then

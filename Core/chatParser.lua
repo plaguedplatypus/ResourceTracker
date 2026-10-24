@@ -90,8 +90,7 @@ end
 
 local function parseTransport(text)
     -- Bank, metal-bank, and material-storage messages.
-    -- "The logs are magically escorted to your bank" omits the log type and
-    -- quantity. BANK is not transmitted while chopping, so leave it uncounted.
+    -- "The logs are magically escorted to your bank" omits the log type and quantity.
     local destination, payload = text:match("^You transport to your ([^:]+):%s*(.+)$")
     if not destination then
         destination, payload = text:match(
