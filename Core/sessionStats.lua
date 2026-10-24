@@ -1,8 +1,8 @@
 local catalog = require("catalog/resourceCatalog")
 
 local stats = {}
--- A pause stops active-time accumulation, but login and logout define the
--- session itself because the native client provides those game-state events.
+-- A pause stops active-time accumulation. The first gain after login starts
+-- a session, and logout ends it through the native game-state event.
 local pauseSeconds = 30
 
 -- Session and daily tables use the same resource key as the main tracker.
@@ -42,8 +42,7 @@ local function settle(data, timestamp)
     entry.activeSeconds = entry.activeSeconds + seconds
 end
 
--- Start at login even before the first resource gain.
--- lastGainAt stays nil until then so idle login time is never counted as gathering activity.
+-- Start at the first tracked gain so idle time after login is excluded.
 function stats.start(data, timestamp, dayKey)
     data.current = {
         startedAt = timestamp,
@@ -140,7 +139,7 @@ function stats.day(data, key, timestamp, currentDay)
     local entry = (data.days or {})[key] or { activeSeconds = 0, items = {} }
     local activeSeconds = entry.activeSeconds
     local current = data.current
-    -- A session exists from login, but it has no active interval until its first resource gain establishes lastGainAt.
+    -- An active interval exists only after the first tracked gain.
     if current and current.lastGainAt and key == currentDay then
         activeSeconds = activeSeconds + activeSince(current, timestamp)
     end
@@ -165,7 +164,7 @@ function stats.moveDay(data, from, to)
     return true
 end
 
--- Login and logout bound a session. Daily history is retained separately.
+-- Logout ends the session. Daily history is retained separately.
 function stats.close(data)
     data.current = nil
 end

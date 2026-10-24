@@ -23,7 +23,8 @@ Each row shows a resource, its count, and an icon. When the game does not provid
 
 - Enter a number and select the pencil to set the count.
 - Enter a number and select the star to set a goal.
-- Select X to clear a goal.
+- Select the eraser to clear a goal.
+- Select the pin to keep a resource above unpinned rows in every sort order. Select it again to unpin the resource.
 - Select the circular arrow twice to reset a count.
 - Select the bin twice to remove a resource.
 
@@ -32,7 +33,7 @@ Select the same resource again to close its controls.
 # Settings, sessions, and history:
 Open the plugin's settings cog in Manage Plugins to control icons, goals, and which skills appear in the tracker.
 
-Select the clock tab before All to open the separate Session window. Drag its title bar to move it, or drag an edge or corner to resize it. Use This session to see resources gathered since logging in and their items per hour. Active time pauses 30 seconds after the last gain. Logging out ends the session.
+Select the Note-Pad tab to open the separate Session window. Use This session to see resources gathered since the first tracked gain after logging in and their items per hour. Active time pauses 30 seconds after the last gain. Logging out ends the session.
 
 Use Daily history in the same window to see counts and items per hour for each recorded day.
 

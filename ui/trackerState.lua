@@ -73,9 +73,9 @@ function trackerState.open(id)
     -- temporary data into the dated entry now.
     local movedToday = currentDay() ~= "Today"
         and sessionStats.moveDay(data.session, "Today", currentDay())
-    -- The client opens this record after entering the game, which establishes
-    -- a new login session even before the first tracked resource is gathered.
-    sessionStats.start(data.session, elapsed, currentDay())
+    -- A saved open session belongs to the previous login. The first tracked
+    -- gain after this login establishes the new session's start time.
+    sessionStats.close(data.session)
     generation = generation + 1
     local changed = next(waitingSettings) ~= nil or movedToday
     waitingSettings = {}
@@ -164,6 +164,15 @@ function trackerState.setGoal(itemKey, goal)
     local item = data.items[itemKey]
     if item and item.goal ~= goal then
         item.goal = goal
+        save()
+    end
+end
+
+-- A pin changes display order without changing the resource's recent order.
+function trackerState.setPinned(itemKey, pinned)
+    local item = data.items[itemKey]
+    if item and item.pinned ~= pinned then
+        item.pinned = pinned or nil
         save()
     end
 end

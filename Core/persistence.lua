@@ -62,6 +62,7 @@ function persistence.load(accountId)
                     itemId = nonNegativeInteger(item.itemId) and item.itemId or nil,
                     count = item.count,
                     goal = nonNegativeInteger(item.goal) and item.goal > 0 and item.goal or nil,
+                    pinned = item.pinned == true or nil,
                     order = nonNegativeInteger(item.order) and item.order or 0
                 }
             end

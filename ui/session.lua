@@ -14,7 +14,7 @@ local shownRevision = -1
 local shownPage
 local rebuild = false
 local shownWidth, shownHeight = 0, 0
-local statusLabel, activeLabel, totalLabel
+local startedLabel, statusLabel, activeLabel, totalLabel
 local rows = {}
 
 local textColour = Vector4.new(0.90, 0.84, 0.69, 1)
@@ -91,13 +91,28 @@ local function buildSession()
     local report = state.getSession()
     local y = 4
     label(view.content, "THIS SESSION", 5, y, view.contentWidth - 10, nil, titleColour)
+    -- The session boundary follows the first tracked gain and logout.
+    view:AddSprite(id.Sprite.RS3_ICON_INFO, {
+        x = 5 + utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "THIS SESSION") + 5,
+        y = y + 1, size = 16, absolute = true,
+        tooltip = { text = "A session starts with the first tracked resource after login and ends when you log out.",
+            maxWidth = 260 }
+    })
     y = y + 23
-    label(view.content, "Started: " .. (report.started or "-"), 5, y, view.contentWidth - 10)
+    startedLabel = label(view.content, "Started: " .. (report.started or "-"),
+        5, y, view.contentWidth - 10)
     y = y + 19
     statusLabel = label(view.content, "Status: " .. report.status, 5, y, view.contentWidth - 10)
     y = y + 19
     activeLabel = label(view.content, "Active time: " .. duration(report.activeSeconds),
         5, y, view.contentWidth - 10)
+    -- Only active time stops after an idle interval; the session remains open.
+    view:AddSprite(id.Sprite.RS3_ICON_INFO, {
+        x = 5 + utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "Active time: 00:00:00") + 5,
+        y = y + 1, size = 16, absolute = true,
+        tooltip = { text = "Active time pauses after 30 seconds without a tracked resource gain and resumes on the next gain.",
+            maxWidth = 260 }
+    })
     y = y + 25
     totalLabel = label(view.content, "Total items: " .. formatCount(report.total), 5, y,
         view.contentWidth - 10, nil, titleColour)
@@ -171,7 +186,7 @@ end
 -- same page's scroll position when new tracking data refreshes its report.
 local function build()
     local scroll = view and page == shownPage and view.scrollY or 0
-    statusLabel, activeLabel, totalLabel = nil, nil, nil
+    startedLabel, statusLabel, activeLabel, totalLabel = nil, nil, nil, nil
     rows = {}
     if view then
         view:Destroy()
@@ -259,6 +274,7 @@ function session.refresh()
         rows[index].count.content = formatCount(item.count)
         rows[index].rate.content = rate(item.count, report.activeSeconds)
     end
+    startedLabel.content = "Started: " .. (report.started or "-")
     statusLabel.content = "Status: " .. report.status
     activeLabel.content = "Active time: " .. duration(report.activeSeconds)
     totalLabel.content = "Total items: " .. formatCount(report.total)

@@ -247,6 +247,9 @@ local function itemsFor(settings)
     end
     -- Preserve a predictable row order when counts or names tie.
     table.sort(items, function(a, b)
+        if (a.item.pinned == true) ~= (b.item.pinned == true) then
+            return a.item.pinned == true
+        end
         if category == "archaeology" and a.artefact ~= b.artefact then
             return not a.artefact
         end
@@ -380,10 +383,15 @@ local function drawEditor(owner, itemKey, item, y, width)
         change("setGoal", false)
     end, 24)
     -- Clear the goal without removing the tracked resource.
-    addImageIcon("clear_goal", "Clear goal", function()
+    addIcon("ERASER", "Clear goal", function()
         -- Defer the saved goal edit until Logic.
         panel.queue(function() state.setGoal(itemKey, nil); armed = nil end)
     end, 44, item.goal == nil)
+
+    -- Pins stay above normal rows in every sort mode and survive reloads.
+    addIcon("PIN", item.pinned and "Unpin resource" or "Pin resource to top", function()
+        panel.queue(function() state.setPinned(itemKey, not item.pinned) end)
+    end, 64)
 
     -- Reset and remove arm on the first click and apply on the second.
     -- Selecting another row clears the armed action.
@@ -436,7 +444,7 @@ drawRows = function(settings, revealSelected)
     local showArtefactSection = selection(settings) == "archaeology"
     local hasArtefacts = false
     for _, entry in ipairs(entries) do
-        if entry.artefact then
+        if entry.artefact and not entry.item.pinned then
             hasArtefacts = true
             break
         end
@@ -444,7 +452,8 @@ drawRows = function(settings, revealSelected)
     local contentHeight = 4
     local artefactHeaderAdded = false
     for _, entry in ipairs(entries) do
-        if showArtefactSection and entry.artefact and not artefactHeaderAdded then
+        if showArtefactSection and entry.artefact and not entry.item.pinned
+            and not artefactHeaderAdded then
             contentHeight = contentHeight + 18
             artefactHeaderAdded = true
         end
@@ -461,7 +470,8 @@ drawRows = function(settings, revealSelected)
     local selectedBottom
     artefactHeaderAdded = false
     for index, entry in ipairs(entries) do
-        if showArtefactSection and hasArtefacts and entry.artefact and not artefactHeaderAdded then
+        if showArtefactSection and hasArtefacts and entry.artefact
+            and not entry.item.pinned and not artefactHeaderAdded then
             local header = ui.Rectangle.new(list.content)
             header:SetPos(2, rowY)
             header:SetSize(rowWidth, 17)
@@ -539,9 +549,17 @@ drawRows = function(settings, revealSelected)
         local countWidth = math.max(49,
             utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, countText) + 2)
         local name = capitalize(item.name)
-        local nameWidth = math.max(1, rowWidth - iconWidth - countWidth - 8)
+        local pinWidth = item.pinned and 16 or 0
+        local nameWidth = math.max(1, rowWidth - iconWidth - countWidth - pinWidth - 8)
         local nameLabel = label(row, name, iconWidth + 3, 1, nameWidth, 21,
             nameColour(item))
+        if item.pinned then
+            local pin = ui.Sprite.new(row)
+            pin:SetPos(rowWidth - countWidth - 19, 4)
+            pin:SetSize(14, 14)
+            pin.spriteID = id.Sprite.RS3_ICON_PINNED_24PX_0
+            pin.clickthrough = true
+        end
         local namePixels = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, name)
         if namePixels > nameWidth + marqueeOverflowWidth then
             -- Start scrolling an overflowing name only while its row is hovered.
