@@ -18,13 +18,12 @@ local function amount(text)
 end
 
 local function update(name, quantity, skill, source)
-    -- Every parser route returns the same tracker update shape.
     name = name:gsub("[%s%.!,]+$", "")
     local definition = catalog.find(name, skill)
     if not definition or not quantity or quantity <= 0 then
         return nil
     end
-    -- Bank-delivered rewards have no backpack item to replace an old saved icon ID.
+    -- Chat rewards use the catalog ID for their icon because no item ID is observed.
     return { name = definition.name, skill = definition.skill, amount = quantity,
         source = source, itemId = definition.itemId }
 end
@@ -75,16 +74,12 @@ local function parseSpirit(text)
 end
 
 local function parseFarming(text)
-    -- These rewards arrive noted or directly at the bank, so chat owns the gain.
+    -- Farming skillcape rewards arrive noted, so chat owns the gain.
     local digits, name = text:match(
         "^Your Farming skillcape perk harvested and noted%s+([%d,]+)%s*x%s+(.+)$")
     if not digits then
         digits, name = text:match(
             "^Your Farming skillcape perk instantly harvests and notes%s+([%d,]+)%s*x%s+(.+)$")
-    end
-    if not digits then
-        digits, name = text:match(
-            "^Your Boon of Crondis has doubled the following item and sent it to your bank:%s*([%d,]+)%s*x%s+(.+)$")
     end
     if digits then
         local entry = update(name, amount(digits), "farming")
@@ -95,12 +90,15 @@ end
 
 local function parseTransport(text)
     -- Bank, metal-bank, and material-storage messages.
+    -- "The logs are magically escorted to your bank" omits the log type and
+    -- quantity. BANK is not transmitted while chopping, so leave it uncounted.
     local destination, payload = text:match("^You transport to your ([^:]+):%s*(.+)$")
     if not destination then
         destination, payload = text:match(
             "^Your League relic transports the following item to your ([^:]+):%s*(.+)$")
     end
     if not destination then
+        -- Boon of Crondis uses this bank-delivery wording for any gathering skill.
         destination, payload = text:match("sent it to your ([^:]+):%s*(.+)$")
     end
     if not destination then
@@ -111,7 +109,8 @@ local function parseTransport(text)
     end
     local hint
     local lowerDestination = destination:lower()
-    if lowerDestination:find("metal bank", 1, true) then
+    local metalBank = lowerDestination:find("metal bank", 1, true) ~= nil
+    if metalBank then
         hint = "mining"
     elseif lowerDestination:find("material storage", 1, true) then
         hint = "archaeology"
@@ -119,10 +118,11 @@ local function parseTransport(text)
         return nil
     end
     if payload:match("^[%d,]+%s*x%s+") then
-        return splitEntries(payload, hint)
+        return splitEntries(payload, hint), metalBank, false, destination
     end
     local entry = update(payload, 1, hint)
-    return entry and { entry } or nil
+    -- Some transport perks omit quantity; a transmitted metal-bank delta can supply it.
+    return entry and { entry } or nil, metalBank, metalBank, destination
 end
 
 local function parseArchaeology(text)
@@ -175,8 +175,13 @@ function chatParser.parse(rawText)
     if entries then return { method = "invention", entries = entries } end
     entries = parseFarming(text)
     if entries then return { method = "farming", entries = entries } end
-    entries = parseTransport(text)
-    if entries then return { method = "remote", entries = entries } end
+    local metalBank, unknownAmount, destination
+    entries, metalBank, unknownAmount, destination = parseTransport(text)
+    if entries then
+        return { method = "remote", entries = entries,
+            metalBank = metalBank, unknownAmount = unknownAmount,
+            destination = destination, message = text }
+    end
     entries = parseArchaeology(text)
     if entries then return { method = "archaeology", entries = entries } end
     entries = parseDirect(text)

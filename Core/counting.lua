@@ -30,10 +30,12 @@ end
 local function countPacket(inventory, chat)
     -- Chat-owned rewards count from their message; direct chat only helps
     -- identify a backpack gain. Remove matched withdrawals, conversions, and
-    -- chat-owned rewards before counting any remaining backpack increase.
+    -- chat rewards that can overlap the backpack before counting a gain.
     local withdrawals = {}
     local backpackConversions = {}
     local chatClaims = {}
+    local metalClaims = {}
+    local unknownMetal = {}
     local directNames = {}
     local updates = {}
 
@@ -59,14 +61,27 @@ local function countPacket(inventory, chat)
     for _, result in ipairs(chat) do
         for _, entry in ipairs(result.entries) do
             local name = catalog.normalize(entry.name)
+            if result.metalBank then
+                if result.unknownAmount then
+                    local entries = unknownMetal[name] or {}
+                    entries[#entries + 1] = entry
+                    unknownMetal[name] = entries
+                else
+                    metalClaims[name] = (metalClaims[name] or 0) + entry.amount
+                end
+            end
             if result.method == "direct" then
                 directNames[name] = entry.skill
                 if entry.skill == "fishing" then
                     directNames["raw " .. name] = entry.skill
                 end
             else
-                -- Explicit remote, material, artefact, or spirit messages own their reward path.
-                chatClaims[name] = (chatClaims[name] or 0) + entry.amount
+                -- Archaeology and Farming skillcape chat can describe backpack
+                -- items. Bank deliveries, including Boon, cannot overlap a
+                -- direct backpack gain of the same resource.
+                if result.method == "archaeology" or result.method == "farming" then
+                    chatClaims[name] = (chatClaims[name] or 0) + entry.amount
+                end
                 updates[#updates + 1] = entry
             end
         end
@@ -118,6 +133,58 @@ local function countPacket(inventory, chat)
                     }
                 end
             end
+        end
+    end
+
+    -- Logs and nests can arrive directly in the wood box. Filling it also moves
+    -- existing items there, so subtract observed losses before counting gains.
+    local transfers = {}
+    for _, withdrawal in ipairs(withdrawals) do
+        transfers[withdrawal.name] = (transfers[withdrawal.name] or 0) + withdrawal.amount
+    end
+    for name, losses in pairs(backpackConversions) do
+        for _, loss in ipairs(losses) do
+            transfers[name] = (transfers[name] or 0) + loss.amount
+        end
+    end
+    for _, change in ipairs(inventory) do
+        if change.containerId == config.Inv.WOODCUTTING_WOODBOX.id and change.delta > 0 then
+            local definition = catalog.findById(change.itemId)
+                or catalog.find(change.name, "woodcutting")
+            if definition and definition.skill == "woodcutting" then
+                local remaining = take(transfers, catalog.normalize(change.name), change.delta)
+                if remaining > 0 then
+                    updates[#updates + 1] = {
+                        name = definition.name,
+                        skill = definition.skill,
+                        amount = remaining,
+                        itemId = change.itemId
+                    }
+                end
+            end
+        end
+    end
+
+    -- Some metal-bank messages name the ore but omit its quantity. Use the
+    -- bank increase when transmitted, after visible deposits and quantified chat.
+    local metalGains = {}
+    for _, change in ipairs(inventory) do
+        if change.containerId == config.Inv.METAL_BANK.id and change.delta > 0 then
+            local definition = catalog.findById(change.itemId)
+                or catalog.find(change.name, "mining")
+            if definition and definition.skill == "mining" then
+                local name = catalog.normalize(definition.name)
+                metalGains[name] = (metalGains[name] or 0) + change.delta
+            end
+        end
+    end
+    for name, gained in pairs(metalGains) do
+        local remaining = take(transfers, name, gained)
+        remaining = take(metalClaims, name, remaining)
+        local entries = unknownMetal[name]
+        if entries and remaining >= #entries then
+            -- Keep one update per chat line; their combined amount is the delta.
+            entries[1].amount = remaining - #entries + 1
         end
     end
 

@@ -44,6 +44,7 @@ return {
         ["Chima moss"] = 63889,
     },
 
+    -- Opening a nest leaves an empty "Bird's nest"; that item is not a new find.
     ["Bird's Nests"] = {
         ["Bird's nest (seeds)"] = 5073,
         ["Bird's nest+ (seeds)"] = 54872,
@@ -60,7 +61,6 @@ return {
         ["Bird's nest (Imcando hatchet head)"] = 54884,
         ["Attuned bird's nest"] = 58153,
         ["Enchanted bird's nest"] = 58241,
-        -- Opening a nest produces the empty item named "Bird's nest"; do not count it again.
     },
 
     ["Other finds"] = {

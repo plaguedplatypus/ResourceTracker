@@ -1,8 +1,7 @@
 local decisions = require("Core/counting")
 
 local inventoryTracker = {}
--- Each inventory keeps its own last snapshot so one server packet can be
--- compared across inventory, bank, and material-storage containers.
+-- Keep the previous snapshot of each transmitted container for transfer checks.
 local baselines = {}
 local inGame = true
 local notedIds = {}
@@ -79,8 +78,9 @@ function inventoryTracker.onUpdated(event)
         return
     end
 
-    -- Compare the current snapshot with the previous one by item ID. The
-    -- counting module decides whether a positive inventory change is a gain.
+    -- Backpack changes, all container losses, and wood-box or metal-bank gains
+    -- enter packet reconciliation. Ordinary bank gains are not counted alone;
+    -- bank losses still identify withdrawals into the backpack.
     local ids = {}
     for id in pairs(previous) do ids[id] = true end
     for id in pairs(current) do ids[id] = true end
@@ -89,7 +89,10 @@ function inventoryTracker.onUpdated(event)
         local after = current[id] and current[id].count or 0
         local delta = after - before
         local backpack = invType.id == config.Inv.INV.id
-        if (backpack and delta ~= 0) or (not backpack and delta < 0) then
+        local woodBox = invType.id == config.Inv.WOODCUTTING_WOODBOX.id
+        local metalBank = invType.id == config.Inv.METAL_BANK.id
+        if (backpack and delta ~= 0) or (not backpack and delta < 0)
+            or ((woodBox or metalBank) and delta > 0) then
             local item = current[id] or previous[id]
             decisions.observeInventory({
                 backpack = backpack,
@@ -115,11 +118,14 @@ function inventoryTracker.onGameStateChanged(event)
     -- Wait for a fresh inventory event after a transition.
 end
 
-function inventoryTracker.seedBackpack()
-    local backpack = config.Inv.INV
-    local items = snapshot(backpack)
-    if items then
-        baselines[backpack.id] = items
+function inventoryTracker.seedContainers()
+    -- Reloading may not emit InventoryAdded for containers already transmitted.
+    for _, invType in ipairs({ config.Inv.INV, config.Inv.WOODCUTTING_WOODBOX,
+        config.Inv.METAL_BANK, config.Inv.BANK }) do
+        local items = snapshot(invType)
+        if items then
+            baselines[invType.id] = items
+        end
     end
 end
 
