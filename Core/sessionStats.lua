@@ -31,8 +31,8 @@ local function activeSince(current, timestamp)
     return math.min(pauseSeconds, math.max(0, timestamp - current.lastGainAt))
 end
 
--- Store completed active time on each gain. The currently open interval is
--- added only while building a report, so it does not need constant saves.
+-- Store completed active time on each gain.
+-- The currently open interval is added only while building a report, so it does not need constant saves.
 local function settle(data, timestamp)
     local current = data.current
     if not current then return end
@@ -42,8 +42,8 @@ local function settle(data, timestamp)
     entry.activeSeconds = entry.activeSeconds + seconds
 end
 
--- Start at login even before the first resource gain. lastGainAt stays nil
--- until then so idle login time is never counted as gathering activity.
+-- Start at login even before the first resource gain.
+-- lastGainAt stays nil until then so idle login time is never counted as gathering activity.
 function stats.start(data, timestamp, dayKey)
     data.current = {
         startedAt = timestamp,
@@ -95,8 +95,7 @@ local function total(items)
     return count
 end
 
--- The UI adds up to 30 seconds after the most recent gain without writing
--- every client tick to PersistentDB.
+-- The UI adds up to 30 seconds after the most recent gain without writing every client tick to PersistentDB.
 function stats.current(data, timestamp)
     local current = data.current
     if not current then
@@ -141,8 +140,7 @@ function stats.day(data, key, timestamp, currentDay)
     local entry = (data.days or {})[key] or { activeSeconds = 0, items = {} }
     local activeSeconds = entry.activeSeconds
     local current = data.current
-    -- A session exists from login, but it has no active interval until its
-    -- first resource gain establishes lastGainAt.
+    -- A session exists from login, but it has no active interval until its first resource gain establishes lastGainAt.
     if current and current.lastGainAt and key == currentDay then
         activeSeconds = activeSeconds + activeSince(current, timestamp)
     end

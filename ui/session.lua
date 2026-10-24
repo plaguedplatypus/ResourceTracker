@@ -250,8 +250,8 @@ function session.refresh()
         if shownRevision ~= state.getRevision() then build() end
         return
     end
-    -- Changing text in place avoids flashing the window on each gain. Rebuild
-    -- only when a new resource changes the table's row layout.
+    -- Changing text in place avoids flashing the window on each gain.
+    -- Rebuild only when a new resource changes the table's row layout.
     local report = state.getSession()
     if #report.items ~= #rows then build(); return end
     for index, item in ipairs(report.items) do

@@ -3,8 +3,8 @@ local state = require("ui/trackerState")
 local session = require("ui/session")
 
 local panel = {}
--- The dock panel owns presentation and click handling. Saved resources and
--- settings remain in trackerState so reloads and settings use one data source.
+-- The dock panel owns presentation and click handling. 
+-- Saved resources and settings remain in trackerState so reloads and settings use one data source.
 local categories = catalog.getCategories()
 local sorts = { "recent", "name", "count" }
 local sortLabels = { recent = "Recent", name = "A-Z", count = "Count" }
@@ -41,6 +41,16 @@ local shownGeneration = -1
 local marquee
 local marqueeOverflowWidth = 42
 
+-- The Plugin Hub reuses and clears its content layer when switching plugins.
+-- A saved parent reference can remain readable after our children are gone.
+local function hasUi()
+    return parent and root and list and list.root
+        and ui.Interfaces:GetInterface(parent.interfaceID)
+        and root.parent == parent
+        and parent:GetChild(root.categoryID, root.dynamicID) == root
+        and root:GetChild(list.root.categoryID, list.root.dynamicID) == list.root
+end
+
 -- PrettyUI click callbacks run in PrettyUI's context. Save from our Logic event.
 function panel.queue(action)
     pending[#pending + 1] = action
@@ -55,11 +65,11 @@ function panel.flushActions()
     return true
 end
 
--- Long names advance one character at a time while hovered. Keeping this
--- local to one label avoids redrawing the list or animating ordinary rows.
+-- Long names advance one character at a time while hovered. 
+-- Keeping this local to one label avoids redrawing the list or animating ordinary rows.
 function panel.tick()
     if not marquee then return end
-    if not root or root.parent ~= parent then
+    if not hasUi() then
         marquee = nil
         return
     end
@@ -131,8 +141,8 @@ local function configId(configName, name)
     if ok and obj and catalog.normalize(obj.name) == name then return obj.id end
 end
 
--- Backpack gains provide an object ID. Chat rewards use a catalogued ID
--- or a cached exact-name config lookup.
+-- Backpack gains provide an object ID. 
+-- Chat rewards use a catalogued ID or a cached exact-name config lookup.
 local function iconId(item)
     if item.itemId then return item.itemId end
     local definition = catalog.find(item.name, item.skill)
@@ -142,8 +152,8 @@ local function iconId(item)
         local configName = item.name:upper():gsub("[^A-Z0-9]+", "_")
         local found = configId(configName, name)
         if not found then
-            -- Salvage configs put the type first and the size last. Their IDs
-            -- are scattered, so use the config name rather than an ID range.
+            -- Salvage configs put the type first and the size last. 
+            -- Their IDs are scattered, so use the config name rather than an ID range.
             local size, shape, metal = name:match("^(%a+) (%a+) (%a+) salvage$")
             if size then
                 configName = shape:upper() .. "_SALVAGE_" .. metal:upper()
@@ -269,8 +279,8 @@ local function editorHeight()
     return 47
 end
 
--- The editor is rendered inside the selected row rather than opening a
--- separate window, so it remains close to the resource being changed.
+-- The editor is rendered inside the selected row rather than opening a separate window,
+-- so it remains close to the resource being changed.
 local function drawEditor(owner, itemKey, item, y, width)
     local height = editorHeight()
     local editor = ui.Layer.new(owner)
@@ -282,8 +292,8 @@ local function drawEditor(owner, itemKey, item, y, width)
     background.colour = Vector4.new(0.10, 0.085, 0.06, 0.7)
     background.clickthrough = true
 
-    -- List children are clipped by the dock. Put editor tooltips in the game
-    -- area instead. xyGlobal does not include a scroll view's current offset,
+    -- List children are clipped by the dock. Put editor tooltips in the game area instead.
+    -- xyGlobal does not include a scroll view's current offset,
     -- so calculate from the list viewport and subtract its scroll position.
     local tooltipParent = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
     -- Convert editor-local positions to game-area coordinates after scrolling.
@@ -414,7 +424,7 @@ end
 -- can collide with its nested dynamic layers before the client releases
 -- the old viewport. Delete only the resource rows instead.
 drawRows = function(settings, revealSelected)
-    if not root or root.parent ~= parent or not list or not list.root then
+    if not hasUi() then
         return false
     end
     marquee = nil
@@ -614,8 +624,8 @@ local function destroyUi()
     if root then root:Destroy(); root = nil end
 end
 
--- Rebuild when the dock changes size or a display-setting change affects
--- layout. Ordinary count changes redraw only the rows in panel.refresh.
+-- Rebuild when the dock changes size or a display-setting change affects layout. 
+-- Ordinary count changes redraw only the rows in panel.refresh.
 local function build()
     if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then return end
     destroyUi()
@@ -838,7 +848,8 @@ end
 
 -- ContentLayerReady can replace the Plugin Hub's whole content interface.
 function panel.onReady(event)
-    if root and root.parent ~= event.component then forgetUi() end
+    -- ContentLayerReady runs after the Hub has already removed the old UI.
+    forgetUi()
     parent = event.component
     build()
 end
@@ -849,7 +860,7 @@ function panel.refresh()
         forgetUi()
         return
     end
-    if not root or root.parent ~= parent or not list or not list.root then
+    if not hasUi() then
         -- ContentLayerReady will build against the replacement ribbon interface.
         forgetUi()
         return

@@ -91,7 +91,8 @@ local function parseFarming(text)
 end
 
 -- Bank, metal-bank, and material-storage messages.
--- "The logs are magically escorted to your bank" omits the log type and quantity.
+-- "The logs are magically escorted to your bank" omits the log type and quantity. 
+-- I am choosing to ignore that message because it does not provide values.
 local function parseTransport(text)
     local destination, payload = text:match("^You transport to your ([^:]+):%s*(.+)$")
     if not destination then
@@ -124,17 +125,6 @@ local function parseTransport(text)
     local entry = update(payload, 1, hint)
     -- Some transport perks omit quantity; a transmitted metal-bank delta can supply it.
     return entry and { entry } or nil, metalBank, metalBank, destination
-end
-
--- Artefact names include "(damaged)" and are grouped by the catalog.
-local function parseArchaeology(text)
-    local name = text:match("^You find:%s*(.+%(damaged%))[%.!]?$", 1)
-        or text:match("^You find some%s+([^%.!]+)[%.!]$")
-    if not name then
-        return nil
-    end
-    local entry = update(name, 1, "archaeology")
-    return entry and { entry } or nil
 end
 
 -- Direct gathering messages identify the item for a nearby inventory change.
@@ -183,8 +173,6 @@ function chatParser.parse(rawText)
             metalBank = metalBank, unknownAmount = unknownAmount,
             destination = destination, message = text }
     end
-    entries = parseArchaeology(text)
-    if entries then return { method = "archaeology", entries = entries } end
     entries = parseDirect(text)
     if entries then return { method = "direct", entries = entries } end
     return nil

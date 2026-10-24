@@ -31,8 +31,9 @@ local function take(pool, name, amount)
     return amount - matched
 end
 
--- Chat-owned rewards count from their message; direct chat only identifies
--- nearby backpack gains. Match withdrawals and conversions before counting.
+-- Chat-owned rewards count from their message.
+-- direct chat only identifies nearby backpack gains. 
+-- Match withdrawals and conversions before counting.
 local function countPacket(inventory, chat)
     local withdrawals = {}
     local backpackConversions = {}
@@ -79,10 +80,9 @@ local function countPacket(inventory, chat)
                     directNames["raw " .. name] = entry.skill
                 end
             else
-                -- Archaeology and Farming skillcape chat can describe backpack items. 
-                -- Bank deliveries, including Boon, cannot overlap a
-                -- direct backpack gain of the same resource.
-                if result.method == "archaeology" or result.method == "farming" then
+                -- Farming skillcape chat can describe a backpack item.
+                -- Bank deliveries, including Boon, cannot overlap a direct backpack gain of the same resource.
+                if result.method == "farming" then
                     chatClaims[name] = (chatClaims[name] or 0) + entry.amount
                 end
                 updates[#updates + 1] = entry
@@ -94,9 +94,8 @@ local function countPacket(inventory, chat)
         if change.backpack and change.delta > 0 and not change.noted then
             local remaining = change.delta
             local normalized = catalog.normalize(change.name)
-            -- Noting and unnoting replace a inventory item ID with another ID
-            -- using the same display name. Pair that replacement before looking
-            -- for actual gains, so it cannot alter the count or stored icon.
+            -- Noting and unnoting replace a inventory item ID with another ID using the same display name. 
+            -- Pair that replacement before looking for actual gains, so it cannot alter the count or stored icon.
             for _, loss in ipairs(backpackConversions[normalized] or {}) do
                 if loss.itemId ~= change.itemId then
                     local matched = math.min(loss.amount, remaining)
@@ -139,8 +138,8 @@ local function countPacket(inventory, chat)
         end
     end
 
-    -- Logs and nests can arrive directly in the wood box. Filling it also moves
-    -- existing items there, so subtract observed losses before counting gains.
+    -- Logs and nests can arrive directly in the wood box. 
+    -- Filling it also moves existing items there, so subtract observed losses before counting gains.
     local transfers = {}
     for _, withdrawal in ipairs(withdrawals) do
         transfers[withdrawal.name] = (transfers[withdrawal.name] or 0) + withdrawal.amount

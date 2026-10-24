@@ -81,9 +81,8 @@ function inventoryTracker.onUpdated(event)
         return
     end
 
-    -- Backpack changes, all container losses, and wood-box or metal-bank gains
-    -- enter packet reconciliation. Ordinary bank gains are not counted alone
-    -- bank losses still identify withdrawals into the backpack.
+    -- Backpack changes, all container losses, and wood-box or metal-bank gains enter packet reconciliation.
+    -- Ordinary bank gains are not counted alone, bank losses still identify withdrawals into the backpack.
     local ids = {}
     for id in pairs(previous) do ids[id] = true end
     for id in pairs(current) do ids[id] = true end

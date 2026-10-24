@@ -43,8 +43,8 @@ function persistence.load(accountId)
         end
     end
     if type(saved.session) == "table" then
-        -- Session history is tracker-owned structured data. It is retained as
-        -- recorded so its item lists and active-time totals remain together.
+        -- Session history is tracker-owned structured data. 
+        -- It is retained as recorded so its item lists and active-time totals remain together.
         data.session = saved.session
     end
 
@@ -68,8 +68,8 @@ function persistence.load(accountId)
         end
     end
     if type(saved.ids) == "table" then
-        -- Older records stored a second ID-to-item map. Keep any ID missing
-        -- from its item row, then save only the row on the next data change.
+        -- Older records stored a second ID-to-item map. 
+        -- Keep any ID missing from its item row, then save only the row on the next data change.
         for id, itemKey in pairs(saved.ids) do
             local itemId = tonumber(id)
             local item = type(itemKey) == "string" and data.items[itemKey]
