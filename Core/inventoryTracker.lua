@@ -6,6 +6,7 @@ local baselines = {}
 local inGame = true
 local notedIds = {}
 
+-- Noted backpack items are excluded because their chat reward owns the count.
 local function isNoted(obj)
     local noted = notedIds[obj.id]
     if noted ~= nil then return noted end
@@ -16,6 +17,7 @@ local function isNoted(obj)
     noted = false
     if obj.stackType == 1 then
         local configName = obj.name:upper():gsub("[^A-Z0-9]+", "_")
+        -- Some object variants have no corresponding ordinary config entry.
         local ok, ordinary = pcall(function() return config.Obj[configName] end)
         noted = obj.name:lower():sub(1, 4) == "raw "
             or (ok and ordinary and ordinary.name == obj.name
@@ -25,8 +27,8 @@ local function isNoted(obj)
     return notedIds[obj.id]
 end
 
+-- Return item ID, name, and stack quantity for every occupied slot.
 local function snapshot(invType)
-    -- Return item ID, name, and stack quantity for every occupied slot.
     local inv = Inventory.Find(invType)
     -- The live inventory proxy exposes isValid; checking valid discarded every snapshot.
     if not inv or not inv.isValid then
@@ -54,13 +56,14 @@ local function snapshot(invType)
     return items
 end
 
+-- Adding a container establishes its baseline before any gain is counted.
 function inventoryTracker.onAdded(event)
-    -- Adding a container establishes its baseline before any gain is counted.
     if inGame then
         baselines[event.inv.id] = snapshot(event.inv)
     end
 end
 
+-- Compare against the last complete snapshot, then pass signed deltas to counting.
 function inventoryTracker.onUpdated(event)
     if not inGame then
         return
@@ -106,11 +109,12 @@ function inventoryTracker.onUpdated(event)
     end
 end
 
+-- A container can later be recreated with unrelated contents.
 function inventoryTracker.onRemoved(event)
-    -- A container can later be recreated with unrelated contents.
     baselines[event.inv.id] = nil
 end
 
+-- Clear cached container contents when the client leaves or enters a game world.
 function inventoryTracker.onGameStateChanged(event)
     baselines = {}
     decisions.discardPending()
@@ -118,8 +122,8 @@ function inventoryTracker.onGameStateChanged(event)
     -- Wait for a fresh inventory event after a transition.
 end
 
+-- Reloading may not emit InventoryAdded for containers already transmitted.
 function inventoryTracker.seedContainers()
-    -- Reloading may not emit InventoryAdded for containers already transmitted.
     for _, invType in ipairs({ config.Inv.INV, config.Inv.WOODCUTTING_WOODBOX,
         config.Inv.METAL_BANK, config.Inv.BANK }) do
         local items = snapshot(invType)

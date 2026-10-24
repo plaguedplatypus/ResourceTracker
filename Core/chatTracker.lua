@@ -4,6 +4,7 @@ local trackerState = require("ui/trackerState")
 
 local chatTracker = {}
 
+-- Forward recognised rewards and timestamps; ordinary chat has no count effect.
 function chatTracker.onMessage(event)
     trackerState.observeTime(event.timestamp)
     -- ChatMessage is permission-gated by the client; this subscription can stay

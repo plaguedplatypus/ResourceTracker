@@ -4,6 +4,7 @@ local decisions = require("Core/counting")
 local trackerState = require("ui/trackerState")
 local panel = require("ui/trackerPanel")
 local settingsPanel = require("ui/settingsPanel")
+local session = require("ui/session")
 
 -- Open the character's persisted record once its required tracking ID arrives.
 -- Until then, counting keeps packet data in memory.
@@ -28,6 +29,7 @@ function PluginShutdown()
     Event.Logic.Unsubscribe("resourceTrackerUiLogic")
     panel.destroy()
     settingsPanel.destroy()
+    session.destroy()
     decisions.discardPending()
     trackerState.unload()
 end
@@ -38,13 +40,16 @@ Event.InventoryAdded.Subscribe("resourceTrackerInventoryAdded", inventoryTracker
 Event.InventoryUpdated.Subscribe("resourceTrackerInventoryUpdated", inventoryTracker.onUpdated)
 Event.InventoryRemoved.Subscribe("resourceTrackerInventoryRemoved", inventoryTracker.onRemoved)
 Event.ChatMessage.Subscribe("resourceTrackerChatMessage", chatTracker.onMessage)
+-- Complete each server packet before refreshing the visible totals.
 Event.ServerLogic.Subscribe("resourceTrackerServerLogic", function()
     openData()
     decisions.finishPacket()
     -- Refresh after a server packet so porter rewards appear promptly.
     panel.refresh()
     settingsPanel.refresh()
+    session.refresh()
 end)
+-- A world transition resets snapshots and opens the account for the new game.
 Event.GameStateChanged.Subscribe("resourceTrackerGameStateChanged", function(event)
     -- Inventory snapshots from a previous world can be stale after a transition.
     inventoryTracker.onGameStateChanged(event)
@@ -55,11 +60,13 @@ Event.GameStateChanged.Subscribe("resourceTrackerGameStateChanged", function(eve
     end
     panel.refresh()
     settingsPanel.refresh()
+    session.refresh()
 end)
 Event.ContentLayerReady.Subscribe("resourceTrackerContentLayerReady", panel.onReady)
 Event.SettingsLayerReady.Subscribe("resourceTrackerSettingsLayerReady", settingsPanel.onReady)
 
 local uiTicks = 0
+-- Tick the UI clock and apply player actions outside PrettyUI callbacks.
 Event.Logic.Subscribe("resourceTrackerUiLogic", function()
     -- Queue UI clicks for the Logic event so state changes happen in one place.
     trackerState.tick()
@@ -70,6 +77,7 @@ Event.Logic.Subscribe("resourceTrackerUiLogic", function()
     if changed or uiTicks % 20 == 0 then
         panel.refresh()
         settingsPanel.refresh()
+        session.refresh()
     end
 end)
 

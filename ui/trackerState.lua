@@ -20,9 +20,9 @@ local elapsed = 0
 -- when chat access is available.
 local epochOffset
 
+-- Convert a Unix day to a Gregorian date without relying on the unavailable
+-- Lua os library. Daily history intentionally displays the UTC calendar day.
 local function dayKey(timestamp)
-    -- Convert a Unix day to a Gregorian date without relying on the unavailable
-    -- Lua os library. Daily history intentionally displays the UTC calendar day.
     local days = timestamp // 86400
     local z = days + 719468
     local era = (z >= 0 and z or z - 146096) // 146097
@@ -37,6 +37,7 @@ local function dayKey(timestamp)
     return string.format("%04d-%02d-%02d", year, month, day)
 end
 
+-- Use a temporary Today bucket until chat supplies a UTC timestamp.
 local function currentDay()
     if epochOffset then
         return dayKey(math.floor(epochOffset + elapsed))
@@ -46,18 +47,20 @@ local function currentDay()
     return "Today"
 end
 
+-- Show the session start in UTC, matching the calendar used by daily history.
 local function formatTime(timestamp)
     local seconds = timestamp % 86400
     return string.format("%02d:%02d:%02d UTC", seconds // 3600,
         (seconds // 60) % 60, seconds % 60)
 end
 
+-- A revision tells docked UI panels to redraw after persisted state changes.
 local function save()
-    -- A revision tells docked UI panels to redraw after persisted state changes.
     persistence.save(data, accountId)
     revision = revision + 1
 end
 
+-- Load the character record after its tracking ID arrives and start a login session.
 function trackerState.open(id)
     if ready and accountId == id then return end
     local loaded = persistence.load(id)
@@ -83,6 +86,7 @@ function trackerState.open(id)
     end
 end
 
+-- End the login session and clear account data when leaving the game.
 function trackerState.unload()
     if ready then
         -- Persist completed daily totals without carrying this login's session
@@ -97,13 +101,14 @@ function trackerState.unload()
     revision = revision + 1
 end
 
+-- Counting waits for the character record before writing gathered resources.
 function trackerState.isReady()
     return ready
 end
 
+-- Chat rewards and backpack observations share one row when they identify
+-- the same resource and source.
 local function ensure(definition, source)
-    -- Chat rewards and backpack observations share one row when they identify
-    -- the same resource and source.
     local itemKey = catalog.makeKey(definition.skill, definition.name, source)
     local item = data.items[itemKey]
     if not item then
@@ -119,6 +124,7 @@ local function ensure(definition, source)
     return item
 end
 
+-- Automatic gains advance both persistent counts and session history.
 function trackerState.recordAuto(updates)
     if not ready then return end
     local changed = false
@@ -142,6 +148,7 @@ function trackerState.recordAuto(updates)
     end
 end
 
+-- Manual count corrections affect the resource row, but not gathered totals.
 function trackerState.setCount(itemKey, value)
     local item = data.items[itemKey]
     if item and item.count ~= value then
@@ -152,6 +159,7 @@ function trackerState.setCount(itemKey, value)
     end
 end
 
+-- A cleared goal is stored as nil so the row returns to count-only display.
 function trackerState.setGoal(itemKey, goal)
     local item = data.items[itemKey]
     if item and item.goal ~= goal then
@@ -160,20 +168,24 @@ function trackerState.setGoal(itemKey, goal)
     end
 end
 
+-- Remove a tracked row without changing the recorded session or daily gains.
 function trackerState.remove(itemKey)
     if not data.items[itemKey] then return end
     data.items[itemKey] = nil
     save()
 end
 
+-- The dock reads this shared table when it draws catalogued resource rows.
 function trackerState.getItems()
     return data.items
 end
 
+-- The dock and Manage Plugins settings read the same saved preferences.
 function trackerState.getSettings()
     return data.settings
 end
 
+-- Add a live active interval and a UTC start time to the current report.
 function trackerState.getSession()
     local report = sessionStats.current(data.session, elapsed)
     if report.startedAt and epochOffset then
@@ -182,27 +194,31 @@ function trackerState.getSession()
     return report
 end
 
+-- Supply newest-first day labels for the history picker.
 function trackerState.getSessionDays()
     return sessionStats.days(data.session)
 end
 
+-- Keep a saved temporary Today record addressable. It is normally moved to
+-- its UTC date when chat provides a timestamp, but the picker must still
+-- display it if a prior client session left one behind.
 function trackerState.getSessionDay(key)
-    -- Keep a saved temporary Today record addressable. It is normally moved to
-    -- its UTC date when chat provides a timestamp, but the picker must still
-    -- display it if a prior client session left one behind.
     return sessionStats.day(data.session, key, elapsed, currentDay())
 end
 
+-- Clearing day summaries leaves the current login session running.
 function trackerState.clearHistory()
     if not ready then return end
     sessionStats.clearDays(data.session)
     save()
 end
 
+-- Logic ticks provide elapsed time when Lua's standard clock is unavailable.
 function trackerState.tick()
     if ready then elapsed = elapsed + 0.02 end
 end
 
+-- Anchor elapsed ticks to the chat timestamp and date any temporary Today data.
 function trackerState.observeTime(timestamp)
     if type(timestamp) ~= "number" or timestamp <= 0 then return end
     local previousDay = currentDay()
@@ -218,6 +234,7 @@ function trackerState.observeTime(timestamp)
     end
 end
 
+-- Keep edits made before the tracking ID arrives, then persist them on open.
 function trackerState.setSetting(name, value)
     if data.settings[name] == value then return end
     data.settings[name] = value
@@ -229,10 +246,12 @@ function trackerState.setSetting(name, value)
     save()
 end
 
+-- The UI compares revisions to redraw changed data without rebuilding every tick.
 function trackerState.getRevision()
     return revision
 end
 
+-- A generation change tells panels to discard selections from another login.
 function trackerState.getGeneration()
     return generation
 end

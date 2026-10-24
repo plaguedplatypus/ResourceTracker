@@ -25,9 +25,9 @@ local categories = {
     { id = "seren", label = "Spirits" }
 }
 
+-- Game messages, inventory names, and catalog entries use slightly different
+-- punctuation and spacing. Use one form for all catalog and tracker keys.
 function catalog.normalize(name)
-    -- Game messages, inventory names, and catalog entries use slightly different
-    -- punctuation and spacing. Use one form for all catalog and tracker keys.
     local cleaned = name:lower():gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
     cleaned = cleaned:gsub("[%.,;:]+$", "")
     -- Woodcutting chat can name the tree while inventory names the logs.
@@ -35,6 +35,7 @@ function catalog.normalize(name)
     return normalized
 end
 
+-- Register a resource under its display name, ID, and known chat aliases.
 local function add(name, skill, groups, itemId, spriteId, artefact, aliases)
     local normalized = catalog.normalize(name)
     assert(not byName[normalized], "Duplicate resource: " .. name)
@@ -94,10 +95,12 @@ for skill, sections in pairs(grouped) do
     end
 end
 
+-- Inventory deltas use object IDs, which avoid ambiguous display names.
 function catalog.findById(itemId)
     return byId[itemId]
 end
 
+-- Resolve chat names with the skill hint when multiple resources share a name.
 function catalog.find(name, skillHint)
     local normalized = catalog.normalize(name)
     if normalized == "" then
@@ -146,20 +149,24 @@ function catalog.find(name, skillHint)
     return nil
 end
 
+-- Source distinguishes rewards such as Seren gifts from ordinary skill gains.
 function catalog.makeKey(skill, name, source)
     return (source or skill) .. ":" .. catalog.normalize(name)
 end
 
+-- Keep tab order stable across panel rebuilds.
 function catalog.getCategories()
     return categories
 end
 
+-- Divination has no subgroup picker; other skills start with All groups.
 function catalog.getGroups(skill)
     if skill == "divination" then return { "all" } end
     local result = { "all" }
     for group in pairs(groupsBySkill[skill] or {}) do
         result[#result + 1] = group
     end
+    -- Present subgroup names in a stable order after All groups.
     table.sort(result, function(a, b)
         if a == "all" then return true end
         if b == "all" then return false end

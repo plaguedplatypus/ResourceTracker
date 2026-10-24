@@ -6,20 +6,24 @@ local inventoryChanges = {}
 local chatResults = {}
 local waitingPackets = {}
 
+-- Buffer inventory deltas until chat from the same game packet can be reconciled.
 function decisions.observeInventory(change)
     inventoryChanges[#inventoryChanges + 1] = change
 end
 
+-- Chat may identify a reward already visible in an inventory delta.
 function decisions.observeChat(result)
     chatResults[#chatResults + 1] = result
 end
 
+-- World changes invalidate observations and any delayed packet reconciliation.
 function decisions.discardPending()
     inventoryChanges = {}
     chatResults = {}
     waitingPackets = {}
 end
 
+-- Claim only the available amount so overlapping sources cannot double count.
 local function take(pool, name, amount)
     local available = pool[name] or 0
     local matched = math.min(available, amount)
@@ -27,11 +31,9 @@ local function take(pool, name, amount)
     return amount - matched
 end
 
+-- Chat-owned rewards count from their message; direct chat only identifies
+-- nearby backpack gains. Match withdrawals and conversions before counting.
 local function countPacket(inventory, chat)
-    -- Chat-owned rewards count from their message
-    -- direct chat only helps identify a backpack gain. 
-    -- Remove matched withdrawals, conversions, and
-    -- chat rewards that can overlap the backpack before counting a gain.
     local withdrawals = {}
     local backpackConversions = {}
     local chatClaims = {}
@@ -192,6 +194,7 @@ local function countPacket(inventory, chat)
     trackerState.recordAuto(updates)
 end
 
+-- Delay one packet to allow chat and inventory events from the same gain to meet.
 function decisions.finishPacket()
     if #inventoryChanges == 0 and #chatResults == 0 and #waitingPackets == 0 then
         return

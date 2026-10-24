@@ -2,19 +2,20 @@ local persistence = {}
 -- Keep all tracker data under one stable record name per character.
 local storageName = "resourceTrackerV1"
 
+-- Namespace saved data per account so characters do not share tracker totals.
 local function storageKey(accountId)
     return storageName .. ":" .. tostring(accountId)
 end
 
+-- Persistent data is an external boundary, so reject malformed counts,
+-- goals, item IDs, and ordering values before using them in the UI.
 local function nonNegativeInteger(value)
-    -- Persistent data is an external boundary, so reject malformed counts,
-    -- goals, item IDs, and ordering values before using them in the UI.
     return type(value) == "number" and value >= 0 and value % 1 == 0
 end
 
+-- Start from a complete empty shape. Saved fields are copied in only after
+-- validation so an invalid record cannot prevent the tracker from loading.
 function persistence.load(accountId)
-    -- Start from a complete empty shape. Saved fields are copied in only after
-    -- validation so an invalid record cannot prevent the tracker from loading.
     local saved = PersistentDB:GetStructuredData(storageKey(accountId))
     local data = { items = {}, order = 0, settings = {}, session = { days = {} } }
     if type(saved) ~= "table" then
@@ -80,8 +81,8 @@ function persistence.load(accountId)
     return data
 end
 
+-- Save the complete state together so counts, settings, and history stay in sync.
 function persistence.save(data, accountId)
-    -- Save the complete state together so counts, settings, and history stay in sync.
     return PersistentDB:SetStructuredData(storageKey(accountId), data)
 end
 

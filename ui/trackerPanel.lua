@@ -1,5 +1,6 @@
 local catalog = require("catalog/resourceCatalog")
 local state = require("ui/trackerState")
+local session = require("ui/session")
 
 local panel = {}
 -- The dock panel owns presentation and click handling. Saved resources and
@@ -45,6 +46,7 @@ function panel.queue(action)
     pending[#pending + 1] = action
 end
 
+-- Apply queued PrettyUI clicks during Logic, where saved state can be changed.
 function panel.flushActions()
     if #pending == 0 then return false end
     local actions = pending
@@ -53,9 +55,9 @@ function panel.flushActions()
     return true
 end
 
+-- Long names advance one character at a time while hovered. Keeping this
+-- local to one label avoids redrawing the list or animating ordinary rows.
 function panel.tick()
-    -- Long names advance one character at a time while hovered. Keeping this
-    -- local to one label avoids redrawing the list or animating ordinary rows.
     if not marquee then return end
     if not root or root.parent ~= parent then
         marquee = nil
@@ -77,6 +79,7 @@ function panel.tick()
     marquee.label.content = marquee.text:sub(marquee.offset)
 end
 
+-- Scroll only labels that overflow the available row width.
 local function startMarquee(label, text, width)
     local last = 1
     for offset = 2, #text do
@@ -91,11 +94,13 @@ local function startMarquee(label, text, width)
     end
 end
 
+-- Restore the complete name when the pointer leaves its row.
 local function stopMarquee(label, text)
     if marquee and marquee.label == label then marquee = nil end
     label.content = text
 end
 
+-- Use the same font and alignment for tracker labels.
 local function label(owner, value, x, y, width, height, tint, right)
     local component = ui.Text.new(owner)
     component:SetPos(x, y)
@@ -109,22 +114,26 @@ local function label(owner, value, x, y, width, height, tint, right)
     return component
 end
 
+-- Keep item names readable after catalog normalization.
 local function capitalize(name)
     return name:gsub("^%l", string.upper)
 end
 
+-- RuneScape item counts are whole numbers even when stored as Lua numbers.
 local function formatCount(value)
     return string.format("%.0f", value)
 end
 
+-- Confirm the config object name before using its ID for a chat-only reward.
 local function configId(configName, name)
+    -- The config may not define every item name seen in chat.
     local ok, obj = pcall(function() return config.Obj[configName] end)
     if ok and obj and catalog.normalize(obj.name) == name then return obj.id end
 end
 
+-- Backpack gains provide an object ID. Chat rewards use a catalogued ID
+-- or a cached exact-name config lookup.
 local function iconId(item)
-    -- Backpack gains provide an object ID. Chat rewards use a catalogued ID
-    -- or a cached exact-name config lookup.
     if item.itemId then return item.itemId end
     local definition = catalog.find(item.name, item.skill)
     if definition and definition.itemId then return definition.itemId end
@@ -149,16 +158,16 @@ local function iconId(item)
     return iconIds[name] or nil
 end
 
+-- Item controls accept only whole, non-negative game quantities.
 local function amountFrom(field, allowZero)
-    -- Item controls accept only whole, non-negative game quantities.
     local amount = tonumber(field:GetText())
     if amount and amount % 1 == 0 and amount >= (allowZero and 0 or 1) then
         return amount
     end
 end
 
+-- Editor controls and tooltip contexts belong to a specific rendered row.
 local function clearEditor()
-    -- Editor controls and tooltip contexts belong to a specific rendered row.
     for _, editor in ipairs(editTooltipContexts) do
         prettyui.Tooltip.unregisterContext(editor)
     end
@@ -167,6 +176,7 @@ local function clearEditor()
     editControls = {}
 end
 
+-- Highlight special reward sources without changing their displayed names.
 local function nameColour(item)
     if item.skill == "seren" then
         return colour.seren
@@ -181,19 +191,39 @@ local function nameColour(item)
     return colour.normal
 end
 
+-- Turn catalog group IDs into readable picker labels.
 local function groupLabel(group)
     if group == "all" then return "All groups" end
     return (group:gsub("(%l)(%u)", "%1 %2"):gsub("^%l", string.upper))
 end
 
+-- A sole visible skill becomes the selected tab, with no redundant All tab.
+local function selection(settings)
+    local hidden = settings.hiddenSkills or {}
+    local onlySkill
+    local multiple = false
+    for _, entry in ipairs(categories) do
+        if entry.id ~= "all" and not hidden[entry.id] then
+            if onlySkill then multiple = true; break end
+            onlySkill = entry.id
+        end
+    end
+    -- With one visible skill, All would show the same resources. Show that
+    -- skill as the active tab without changing the player's saved selection.
+    local category = not multiple and onlySkill or (settings.category or "all")
+    if hidden[category] then category = "all" end
+    local group = settings.group or "all"
+    if category ~= (settings.category or "all") or category == "divination" then
+        group = "all"
+    end
+    return category, group, not multiple and onlySkill ~= nil
+end
+
+-- Apply player visibility, skill, and group choices before sorting rows.
 local function itemsFor(settings)
-    -- Apply player visibility, skill, and group choices before sorting rows.
     local items = {}
     local hidden = settings.hiddenSkills or {}
-    local category = settings.category or "all"
-    local group = settings.group or "all"
-    if hidden[category] then category, group = "all", "all" end
-    if category == "divination" then group = "all" end
+    local category, group = selection(settings)
     for itemKey, item in pairs(state.getItems()) do
         local definition = catalog.find(item.name, item.skill)
         if not hidden[item.skill] and (category == "all" or item.skill == category)
@@ -205,6 +235,7 @@ local function itemsFor(settings)
             }
         end
     end
+    -- Preserve a predictable row order when counts or names tie.
     table.sort(items, function(a, b)
         if category == "archaeology" and a.artefact ~= b.artefact then
             return not a.artefact
@@ -220,8 +251,8 @@ local function itemsFor(settings)
     return items
 end
 
+-- A compact comparison determines whether the panel needs a full rebuild.
 local function signature(settings)
-    -- A compact comparison determines whether the panel needs a full rebuild.
     local parts = { settings.category or "all", settings.group or "all",
         settings.sort or "recent", tostring(settings.showIcons ~= false),
         tostring(settings.showGoals ~= false) }
@@ -233,13 +264,14 @@ end
 
 local drawRows
 
+-- Reserve the same vertical space for every expanded resource editor.
 local function editorHeight()
     return 47
 end
 
+-- The editor is rendered inside the selected row rather than opening a
+-- separate window, so it remains close to the resource being changed.
 local function drawEditor(owner, itemKey, item, y, width)
-    -- The editor is rendered inside the selected row rather than opening a
-    -- separate window, so it remains close to the resource being changed.
     local height = editorHeight()
     local editor = ui.Layer.new(owner)
     editor:SetPos(2, y)
@@ -254,6 +286,7 @@ local function drawEditor(owner, itemKey, item, y, width)
     -- area instead. xyGlobal does not include a scroll view's current offset,
     -- so calculate from the list viewport and subtract its scroll position.
     local tooltipParent = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
+    -- Convert editor-local positions to game-area coordinates after scrolling.
     prettyui.Tooltip.registerContext(editor, tooltipParent, function(target)
         local listPos = list.root.xyGlobal
         local parentPos = tooltipParent.xyGlobal
@@ -262,6 +295,7 @@ local function drawEditor(owner, itemKey, item, y, width)
     end)
     editTooltipContexts[#editTooltipContexts + 1] = editor
 
+    -- Place editor control tips through the registered game-area context.
     local function attachTip(button, text)
         prettyui.Tooltip.attach(button, editor, { text = text, placement = "right" })
     end
@@ -271,10 +305,12 @@ local function drawEditor(owner, itemKey, item, y, width)
         x = 4, y = 3, width = innerWidth, height = 21,
         text = draft, placeholder = "Count or goal",
         filterMode = ui.InputFieldFilterMode.NUMBERS_AS_TEXT, maxLength = 12,
+        -- Keep unfinished input local until a count or goal action is chosen.
         onChange = function(_, _, value) draft = value end
     })
     editControls[#editControls + 1] = field
 
+    -- Create a PrettyUI action icon and attach its editor tooltip.
     local function addIcon(sprite, tip, action, x, disabled)
         local button = prettyui.SpriteButton.new(editor, sprite, action, {
             x = x, y = 27, size = 16, disabled = disabled
@@ -284,6 +320,7 @@ local function drawEditor(owner, itemKey, item, y, width)
         return button
     end
 
+    -- Use plugin images for actions without a suitable built-in sprite.
     local function addImageIcon(resource, tip, action, x, disabled, highlighted)
         local button = ui.Layer.new(editor)
         button:SetPos(x, 27)
@@ -302,6 +339,7 @@ local function drawEditor(owner, itemKey, item, y, width)
             label(button, "?", 0, 0, 16, 16)
         end
         if not disabled then
+            -- Match PrettyUI button behavior for the plugin image control.
             button:Subscribe(ui.Hook.ONCLICK, function()
                 action()
                 return true
@@ -312,22 +350,28 @@ local function drawEditor(owner, itemKey, item, y, width)
         return button
     end
 
+    -- Validate the entered amount before queueing a saved-state change.
     local function change(method, allowZero)
         local amount = amountFrom(field, allowZero)
         if not amount then return end
+        -- Apply the validated edit after PrettyUI has finished its callback.
         panel.queue(function()
             state[method](itemKey, amount)
             draft, armed = "", nil
         end)
     end
 
+    -- Manual count corrections do not add to the gathering session.
     addIcon("PENCIL", "Set count from the entered number", function()
         change("setCount", true)
     end, 4)
+    -- A goal is display-only and leaves the gathered count intact.
     addIcon("STAR", "Set goal from the entered number", function()
         change("setGoal", false)
     end, 24)
+    -- Clear the goal without removing the tracked resource.
     addImageIcon("clear_goal", "Clear goal", function()
+        -- Defer the saved goal edit until Logic.
         panel.queue(function() state.setGoal(itemKey, nil); armed = nil end)
     end, 44, item.goal == nil)
 
@@ -335,24 +379,29 @@ local function drawEditor(owner, itemKey, item, y, width)
     -- Selecting another row clears the armed action.
     addImageIcon("reset_count", "Reset count (click twice)", function()
         if armed == "reset" then
+            -- The confirmed reset changes only this resource's current count.
             panel.queue(function()
                 state.setCount(itemKey, 0)
                 selected, draft, armed = nil, "", nil
             end)
         else
+            -- First click arms the reset and redraws its highlighted control.
             panel.queue(function()
                 armed = "reset"
                 drawRows(state.getSettings(), true)
             end)
         end
     end, width - 40, false, armed == "reset")
+    -- Removing a row requires the same two-click confirmation as reset.
     addImageIcon("delete_item", "Remove resource (click twice)", function()
         if armed == "remove" then
+            -- The confirmed action removes the row from saved tracker state.
             panel.queue(function()
                 state.remove(itemKey)
                 selected, draft, armed = nil, "", nil
             end)
         else
+            -- First click arms removal without changing saved data.
             panel.queue(function()
                 armed = "remove"
                 drawRows(state.getSettings(), true)
@@ -361,10 +410,10 @@ local function drawEditor(owner, itemKey, item, y, width)
     end, width - 20, false, armed == "remove")
 end
 
+-- Keep PrettyUI's scroll view alive. Recreating it during a server update
+-- can collide with its nested dynamic layers before the client releases
+-- the old viewport. Delete only the resource rows instead.
 drawRows = function(settings, revealSelected)
-    -- Keep PrettyUI's scroll view alive. Recreating it during a server update
-    -- can collide with its nested dynamic layers before the client releases
-    -- the old viewport. Delete only the resource rows instead.
     if not root or root.parent ~= parent or not list or not list.root then
         return false
     end
@@ -374,7 +423,7 @@ drawRows = function(settings, revealSelected)
     local height = list.root.height
     list.content:DeleteAll()
     local entries = itemsFor(settings)
-    local showArtefactSection = settings.category == "archaeology"
+    local showArtefactSection = selection(settings) == "archaeology"
     local hasArtefacts = false
     for _, entry in ipairs(entries) do
         if entry.artefact then
@@ -485,10 +534,12 @@ drawRows = function(settings, revealSelected)
             nameColour(item))
         local namePixels = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, name)
         if namePixels > nameWidth + marqueeOverflowWidth then
+            -- Start scrolling an overflowing name only while its row is hovered.
             row:Subscribe(ui.Hook.ONMOUSEOVER, function()
                 startMarquee(nameLabel, name, nameWidth)
                 return true
             end)
+            -- Restore the full name as soon as the pointer leaves.
             row:Subscribe(ui.Hook.ONMOUSELEAVE, function()
                 stopMarquee(nameLabel, name)
                 return true
@@ -502,7 +553,9 @@ drawRows = function(settings, revealSelected)
                 formatCount(item.goal), percent),
                 iconWidth + 3, 20, rowWidth - iconWidth - 8, 14, colour.goal)
         end
+        -- Select or collapse the resource's inline count and goal editor.
         row:Subscribe(ui.Hook.ONCLICK, function()
+            -- Redraw the rows after the selection state changes.
             panel.queue(function()
                 if selected == itemKey then
                     selected = nil
@@ -536,17 +589,18 @@ drawRows = function(settings, revealSelected)
     list:SetScrollPosition(scroll)
 end
 
+-- Opening or closing the ribbon can replace the Plugin Hub content layer
+-- before the next Logic refresh. Those components were already destroyed
+-- by the client, so do not try to rebuild rows inside their old parent.
 local function forgetUi()
-    -- Opening or closing the ribbon can replace the Plugin Hub content layer
-    -- before the next Logic refresh. Those components were already destroyed
-    -- by the client, so do not try to rebuild rows inside their old parent.
+    if root then prettyui.Tooltip.unregisterContext(root) end
     selected, draft, armed, marquee = nil, "", nil, nil
     tabTips, editControls, editTooltipContexts = {}, {}, {}
     list, root = nil, nil
 end
 
+-- PrettyUI views own their children. Destroy the view before its root layer.
 local function destroyUi()
-    -- PrettyUI views own their children. Destroy the view before its root layer.
     if list and not list.root then
         forgetUi()
         return
@@ -555,29 +609,46 @@ local function destroyUi()
     clearEditor()
     for _, tip in ipairs(tabTips) do tip:Destroy() end
     tabTips = {}
+    if root then prettyui.Tooltip.unregisterContext(root) end
     if list then list:Destroy(); list = nil end
     if root then root:Destroy(); root = nil end
 end
 
+-- Rebuild when the dock changes size or a display-setting change affects
+-- layout. Ordinary count changes redraw only the rows in panel.refresh.
 local function build()
-    -- Rebuild when the dock changes size or a display-setting change affects
-    -- layout. Ordinary count changes redraw only the rows in panel.refresh.
     if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then return end
     destroyUi()
     local width, height = parent.width, parent.height
     root = ui.Layer.new(parent)
     root:SetSize(width, height)
+    -- Brother Where Art Thou uses this top layer for tips outside its dock.
+    -- Map each tab's position into that layer so PrettyUI can choose whichever
+    -- side has room while keeping the hovered icon visible.
+    local tooltipParent = ui.Interfaces:GetComponent(
+        id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+        or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
+    -- Tab tips use top-layer coordinates so they can extend past the dock.
+    prettyui.Tooltip.registerContext(root, tooltipParent, function(target)
+        local rootPos = root.xyGlobal
+        local parentPos = tooltipParent.xyGlobal
+        return rootPos.x + (target.x or 0) - parentPos.x,
+            rootPos.y + (target.y or 0) - parentPos.y
+    end)
     local settings = state.getSettings()
     local hidden = settings.hiddenSkills or {}
-    local current = hidden[settings.category] and "all" or (settings.category or "all")
+    local current, activeGroup, singleSkill = selection(settings)
     local visible = {}
     for _, entry in ipairs(categories) do
-        if entry.id == "all" or not hidden[entry.id] then
+        if (entry.id == "all" and not singleSkill)
+            or (entry.id ~= "all" and not hidden[entry.id]) then
             visible[#visible + 1] = entry
         end
     end
     local tabWidth, tabHeight = 28, 29
-    local slots = math.max(1, math.floor((width - 32) / tabWidth))
+    -- Reserve one fixed tab for the separate session window. Skill tabs still
+    -- scroll, but the report button stays reachable at every panel width.
+    local slots = math.max(1, math.floor((width - 60) / tabWidth))
     local maxOffset = math.max(0, #visible - slots)
     tabOffset = math.min(tabOffset, maxOffset)
     -- Keep the chosen skill in view when the category or panel width changes.
@@ -590,6 +661,7 @@ local function build()
         end
     end
     shownCategory = current
+    -- Show tab paging arrows only when enabled skills exceed the dock width.
     local function addArrow(name, x, step)
         local button = ui.Layer.new(root)
         button:SetPos(x, 3)
@@ -609,8 +681,10 @@ local function build()
             arrow.alignHorizontal = ui.AlignMode.CENTRE
             arrow.alignVertical = ui.AlignMode.CENTRE
         end
+        -- Page the skill strip within the current visible-tab bounds.
         button:Subscribe(ui.Hook.ONCLICK, function()
             if (step < 0 and tabOffset > 0) or (step > 0 and tabOffset < maxOffset) then
+                -- Rebuild tab positions after a page step.
                 panel.queue(function() tabOffset = tabOffset + step; build() end)
             end
             return true
@@ -619,10 +693,40 @@ local function build()
     -- Only show an arrow when tabs are available beyond that edge.
     if tabOffset > 0 then addArrow("left", 1, -1) end
     if tabOffset < maxOffset then addArrow("right", width - 15, 1) end
+    local sessionTab = ui.Layer.new(root)
+    sessionTab:SetPos(16, 3)
+    sessionTab:SetSize(tabWidth, tabHeight)
+    local sessionBackground = ui.Sprite.new(sessionTab)
+    sessionBackground:SetSize(tabWidth, tabHeight)
+    sessionBackground.spriteID = prettyui.Sprites.ICON_TAB.inactive
+    sessionBackground.clickthrough = true
+    -- Show the session tab's hover sprite without hiding its icon.
+    sessionTab:Subscribe(ui.Hook.ONMOUSEOVER, function()
+        sessionBackground.spriteID = prettyui.Sprites.ICON_TAB.hovered
+        return true
+    end)
+    -- Restore the idle sprite when the pointer leaves the session tab.
+    sessionTab:Subscribe(ui.Hook.ONMOUSELEAVE, function()
+        sessionBackground.spriteID = prettyui.Sprites.ICON_TAB.inactive
+        return true
+    end)
+    -- Open the separate report window from the dock tab.
+    sessionTab:Subscribe(ui.Hook.ONCLICK, function()
+        -- Create or show the report during Logic.
+        panel.queue(function() session.open(panel.queue) end)
+        return true
+    end)
+    tabTips[#tabTips + 1] = prettyui.Tooltip.attach(sessionTab, root,
+        "Session and daily history")
+    local sessionIcon = ui.Sprite.new(sessionTab)
+    sessionIcon:SetPos(2, 2)
+    sessionIcon:SetSize(24, 24)
+    sessionIcon.spriteID = id.Sprite.STONEMENUSIDEICONS_15
+    sessionIcon.clickthrough = true
     for index = tabOffset + 1, math.min(#visible, tabOffset + slots) do
         local entry = visible[index]
         local skill = entry.id
-        local x, y = 16 + (index - tabOffset - 1) * tabWidth, 3
+        local x, y = 44 + (index - tabOffset - 1) * tabWidth, 3
         -- Sprite components cannot own children; the layer holds the tab
         -- background, skill icon, and optional text.
         local tab = ui.Layer.new(root)
@@ -634,16 +738,20 @@ local function build()
         local active = current == skill
         background.spriteID = active and prettyui.Sprites.ICON_TAB.active
             or prettyui.Sprites.ICON_TAB.inactive
+        -- Keep the active skill highlighted while hovering other tabs.
         tab:Subscribe(ui.Hook.ONMOUSEOVER, function()
             if not active then background.spriteID = prettyui.Sprites.ICON_TAB.hovered end
             return true
         end)
+        -- Return inactive tabs to their resting sprite.
         tab:Subscribe(ui.Hook.ONMOUSELEAVE, function()
             background.spriteID = active and prettyui.Sprites.ICON_TAB.active
                 or prettyui.Sprites.ICON_TAB.inactive
             return true
         end)
+        -- Choosing a skill returns its group picker to All groups.
         tab:Subscribe(ui.Hook.ONCLICK, function()
+            -- Save both tab and group choices in one Logic action.
             panel.queue(function()
                 state.setSetting("category", skill)
                 state.setSetting("group", "all")
@@ -678,7 +786,9 @@ local function build()
     local controlY = 35
     local sortWidth = 68
     local sort = settings.sort or "recent"
+    -- Cycle the order used by the visible resource rows.
     prettyui.SimpleButton.new(root, sortLabels[sort], function()
+        -- Persist the next sort mode before the panel rebuilds.
         panel.queue(function()
             for index, name in ipairs(sorts) do
                 if name == sort then
@@ -690,12 +800,17 @@ local function build()
     end, { x = 4, y = controlY, width = sortWidth, height = 22 })
     local groups = catalog.getGroups(current)
     if #groups > 1 then
-        local group = settings.group or "all"
+        local group = activeGroup
         prettyui.SimpleButton.new(root, groupLabel(group),
+            -- Step through the selected skill's catalog groups.
             function()
+                -- Save the next group during Logic for a consistent row redraw.
                 panel.queue(function()
                     for index, name in ipairs(groups) do
                         if name == group then
+                            if settings.category ~= current then
+                                state.setSetting("category", current)
+                            end
                             state.setSetting("group", groups[index % #groups + 1])
                             break
                         end
@@ -714,13 +829,14 @@ local function build()
     shownGeneration = state.getGeneration()
 end
 
+-- ContentLayerReady can replace the Plugin Hub's whole content interface.
 function panel.onReady(event)
-    -- ContentLayerReady can replace the Plugin Hub's whole content interface.
     if root and root.parent ~= event.component then forgetUi() end
     parent = event.component
     build()
 end
 
+-- Rebuild for layout changes and redraw rows for ordinary count updates.
 function panel.refresh()
     if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then
         forgetUi()
@@ -752,6 +868,7 @@ function panel.refresh()
     end
 end
 
+-- Release PrettyUI elements and pending actions when the plugin unloads.
 function panel.destroy()
     pending = {}
     marquee = nil

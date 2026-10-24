@@ -2,12 +2,13 @@ local catalog = require("catalog/resourceCatalog")
 
 local chatParser = {}
 
+-- Game messages can contain colour tags and inconsistent whitespace.
 local function clean(text)
-    -- Game messages can contain colour tags and inconsistent whitespace.
     return text:gsub("<[^>]*>", ""):gsub("%s+", " "):gsub("^%s+", "")
         :gsub("%s+$", "")
 end
 
+-- RuneScape quantities may contain thousands commas; reject invalid values.
 local function amount(text)
     local digits = text:gsub(",", "")
     local number = tonumber(digits)
@@ -17,6 +18,7 @@ local function amount(text)
     return nil
 end
 
+-- Resolve chat names through the catalog before they reach the counter.
 local function update(name, quantity, skill, source)
     name = name:gsub("[%s%.!,]+$", "")
     local definition = catalog.find(name, skill)
@@ -28,9 +30,9 @@ local function update(name, quantity, skill, source)
         source = source, itemId = definition.itemId }
 end
 
+-- Multi-reward lines separate entries with a comma followed by another N x prefix.
+-- Require spacing after a separator so a thousands comma stays in the amount.
 local function splitEntries(text, skill, source)
-    -- Multi-reward lines separate entries with a comma followed by another N x prefix.
-    -- Require spacing after a separator so a thousands comma stays in the amount.
     local separated = text:gsub(",%s+([%d,]+)%s*x%s+", "\n%1 x ")
     local result = {}
     for part in separated:gmatch("[^\n]+") do
@@ -44,8 +46,8 @@ local function splitEntries(text, skill, source)
     return #result > 0 and result or nil
 end
 
+-- Invention sends both single rewards and comma-separated material batches.
 local function parseInvention(text)
-    -- Invention sends both single rewards and comma-separated material batches.
     local payload = text:match("^Materials gained:%s*(.+)$")
         or text:match("^Your Scavenging perk adds:%s*(.+)$")
         or text:match("^Your Leagues? Scavenging perk finds:?%s*(.+)$")
@@ -63,8 +65,8 @@ local function parseInvention(text)
     return nil
 end
 
+-- Only Seren spirit gifts belong to the tracker spirit category.
 local function parseSpirit(text)
-    -- Only Seren spirit gifts belong to the tracker spirit category.
     local payload = text:match("^The Seren spirit gifts you:%s*(.+)$")
     if not payload then
         return nil
@@ -73,8 +75,8 @@ local function parseSpirit(text)
     return splitEntries(payload, "seren", "seren-spirit")
 end
 
+-- Farming skillcape rewards arrive noted, so chat owns the gain.
 local function parseFarming(text)
-    -- Farming skillcape rewards arrive noted, so chat owns the gain.
     local digits, name = text:match(
         "^Your Farming skillcape perk harvested and noted%s+([%d,]+)%s*x%s+(.+)$")
     if not digits then
@@ -88,9 +90,9 @@ local function parseFarming(text)
     return nil
 end
 
+-- Bank, metal-bank, and material-storage messages.
+-- "The logs are magically escorted to your bank" omits the log type and quantity.
 local function parseTransport(text)
-    -- Bank, metal-bank, and material-storage messages.
-    -- "The logs are magically escorted to your bank" omits the log type and quantity.
     local destination, payload = text:match("^You transport to your ([^:]+):%s*(.+)$")
     if not destination then
         destination, payload = text:match(
@@ -124,8 +126,8 @@ local function parseTransport(text)
     return entry and { entry } or nil, metalBank, metalBank, destination
 end
 
+-- Artefact names include "(damaged)" and are grouped by the catalog.
 local function parseArchaeology(text)
-    -- Artefact names include "(damaged)" and are grouped by the catalog.
     local name = text:match("^You find:%s*(.+%(damaged%))[%.!]?$", 1)
         or text:match("^You find some%s+([^%.!]+)[%.!]$")
     if not name then
@@ -135,8 +137,8 @@ local function parseArchaeology(text)
     return entry and { entry } or nil
 end
 
+-- Direct gathering messages identify the item for a nearby inventory change.
 local function parseDirect(text)
-    -- Direct gathering messages identify the item for a nearby inventory change.
     local name = text:match("^You get some%s+([^%.!]+)[%.!]")
         or text:match("^You find an?%s+(enchanted bird's nest)[%.!]")
         or text:match("^You find an?%s+(bird's nest)[%.!]")
@@ -162,8 +164,8 @@ local function parseDirect(text)
     return nil
 end
 
+-- Test the specific message formats first. Unrecognised chat is discarded.
 function chatParser.parse(rawText)
-    -- Test the specific message formats first. Unrecognised chat is discarded.
     local text = clean(rawText)
     -- The bank-transport line already includes the delivered Scraps bonus.
     -- Its separate perk notice must not create another resource gain.

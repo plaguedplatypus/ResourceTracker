@@ -5,8 +5,8 @@ local stats = {}
 -- session itself because the native client provides those game-state events.
 local pauseSeconds = 30
 
+-- Session and daily tables use the same resource key as the main tracker.
 local function addItem(items, update)
-    -- Session and daily tables use the same resource key as the main tracker.
     local key = catalog.makeKey(update.skill, update.name)
     local item = items[key]
     if not item then
@@ -16,8 +16,8 @@ local function addItem(items, update)
     item.count = item.count + update.amount
 end
 
+-- Create a day only when the first tracked gain reaches it.
 local function day(data, key)
-    -- Create a day only when the first tracked gain reaches it.
     local entry = data.days[key]
     if not entry then
         entry = { activeSeconds = 0, items = {} }
@@ -26,14 +26,14 @@ local function day(data, key)
     return entry
 end
 
+-- Idle time after the pause threshold never contributes to items per hour.
 local function activeSince(current, timestamp)
-    -- Idle time after the pause threshold never contributes to items per hour.
     return math.min(pauseSeconds, math.max(0, timestamp - current.lastGainAt))
 end
 
+-- Store completed active time on each gain. The currently open interval is
+-- added only while building a report, so it does not need constant saves.
 local function settle(data, timestamp)
-    -- Store completed active time on each gain. The currently open interval is
-    -- added only while building a report, so it does not need constant saves.
     local current = data.current
     if not current then return end
     local seconds = activeSince(current, timestamp)
@@ -42,9 +42,9 @@ local function settle(data, timestamp)
     entry.activeSeconds = entry.activeSeconds + seconds
 end
 
+-- Start at login even before the first resource gain. lastGainAt stays nil
+-- until then so idle login time is never counted as gathering activity.
 function stats.start(data, timestamp, dayKey)
-    -- Start at login even before the first resource gain. lastGainAt stays nil
-    -- until then so idle login time is never counted as gathering activity.
     data.current = {
         startedAt = timestamp,
         lastGainAt = nil,
@@ -54,8 +54,8 @@ function stats.start(data, timestamp, dayKey)
     }
 end
 
+-- Automatic gains populate both the current session and its day summary.
 function stats.record(data, updates, timestamp, dayKey)
-    -- Automatic gains populate both the current session and its day summary.
     data.days = data.days or {}
     local current = data.current
     if not current then
@@ -76,10 +76,11 @@ function stats.record(data, updates, timestamp, dayKey)
     end
 end
 
+-- Reports are sorted by quantity first, with a stable readable name order.
 local function itemList(items)
-    -- Reports are sorted by quantity first, with a stable readable name order.
     local result = {}
     for _, item in pairs(items or {}) do result[#result + 1] = item end
+    -- Rank the largest gains first, then use the name for stable ties.
     table.sort(result, function(a, b)
         if a.count ~= b.count then return a.count > b.count end
         return a.name:lower() < b.name:lower()
@@ -87,15 +88,16 @@ local function itemList(items)
     return result
 end
 
+-- Session and day totals include each resource's recorded quantity.
 local function total(items)
     local count = 0
     for _, item in pairs(items or {}) do count = count + item.count end
     return count
 end
 
+-- The UI adds up to 30 seconds after the most recent gain without writing
+-- every client tick to PersistentDB.
 function stats.current(data, timestamp)
-    -- The UI adds up to 30 seconds after the most recent gain without writing
-    -- every client tick to PersistentDB.
     local current = data.current
     if not current then
         return { status = "Idle", activeSeconds = 0, total = 0, items = {} }
@@ -120,20 +122,22 @@ function stats.current(data, timestamp)
     }
 end
 
+-- The history picker presents recorded days from newest to oldest.
 function stats.days(data)
     local result = {}
     for key in pairs(data.days or {}) do result[#result + 1] = key end
+    -- ISO date keys sort in reverse lexicographic order for newest first.
     table.sort(result, function(a, b) return a > b end)
     return result
 end
 
+-- Keep the current gathering session alive while discarding saved day totals.
 function stats.clearDays(data)
-    -- Keep the current gathering session alive while discarding saved day totals.
     data.days = {}
 end
 
+-- Only today's open session can add unpersisted active time to a daily view.
 function stats.day(data, key, timestamp, currentDay)
-    -- Only today's open session can add unpersisted active time to a daily view.
     local entry = (data.days or {})[key] or { activeSeconds = 0, items = {} }
     local activeSeconds = entry.activeSeconds
     local current = data.current
@@ -145,9 +149,9 @@ function stats.day(data, key, timestamp, currentDay)
     return { activeSeconds = activeSeconds, total = total(entry.items), items = itemList(entry.items) }
 end
 
+-- Before a chat timestamp arrives, gains use the temporary Today bucket.
+-- Move that bucket into the dated record once the client provides a time.
 function stats.moveDay(data, from, to)
-    -- Before a chat timestamp arrives, gains use the temporary Today bucket.
-    -- Move that bucket into the dated record once the client provides a time.
     if from == to then return false end
     local old = data.days and data.days[from]
     if not old then return false end
@@ -163,8 +167,8 @@ function stats.moveDay(data, from, to)
     return true
 end
 
+-- Login and logout bound a session. Daily history is retained separately.
 function stats.close(data)
-    -- Login and logout bound a session. Daily history is retained separately.
     data.current = nil
 end
 
