@@ -299,12 +299,19 @@ local function drawEditor(owner, itemKey, item, y, width)
     -- xyGlobal does not include a scroll view's current offset,
     -- so calculate from the list viewport and subtract its scroll position.
     local tooltipParent = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
+    local contextRoot, contextList = root, list
     -- Convert editor-local positions to game-area coordinates after scrolling.
     prettyui.Tooltip.registerContext(editor, tooltipParent, function(target)
-        local listPos = list.root.xyGlobal
-        local parentPos = tooltipParent.xyGlobal
-        return listPos.x + (editor.x or 0) + (target.x or 0) - parentPos.x,
-            listPos.y + (editor.y or 0) + (target.y or 0) - list.scrollY - parentPos.y
+        -- PrettyUI can finish a drag callback after the Hub replaces our panel.
+        if root ~= contextRoot or list ~= contextList then return 0, 0 end
+        local ok, x, y = pcall(function()
+            local listPos = contextList.root.xyGlobal
+            local parentPos = tooltipParent.xyGlobal
+            return listPos.x + (editor.x or 0) + (target.x or 0) - parentPos.x,
+                listPos.y + (editor.y or 0) + (target.y or 0) - contextList.scrollY - parentPos.y
+        end)
+        if ok then return x, y end
+        return 0, 0
     end)
     editTooltipContexts[#editTooltipContexts + 1] = editor
 
@@ -656,12 +663,19 @@ local function build()
     local tooltipParent = ui.Interfaces:GetComponent(
         id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
         or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
+    local contextRoot = root
     -- Tab tips use top-layer coordinates so they can extend past the dock.
     prettyui.Tooltip.registerContext(root, tooltipParent, function(target)
-        local rootPos = root.xyGlobal
-        local parentPos = tooltipParent.xyGlobal
-        return rootPos.x + (target.x or 0) - parentPos.x,
-            rootPos.y + (target.y or 0) - parentPos.y
+        -- A pending PrettyUI callback may outlive this particular dock layer.
+        if root ~= contextRoot then return 0, 0 end
+        local ok, x, y = pcall(function()
+            local rootPos = contextRoot.xyGlobal
+            local parentPos = tooltipParent.xyGlobal
+            return rootPos.x + (target.x or 0) - parentPos.x,
+                rootPos.y + (target.y or 0) - parentPos.y
+        end)
+        if ok then return x, y end
+        return 0, 0
     end)
     local settings = state.getSettings()
     local hidden = settings.hiddenSkills or {}
