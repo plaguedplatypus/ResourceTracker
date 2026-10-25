@@ -17,8 +17,8 @@ local shownWidth, shownHeight = 0, 0
 local startedLabel, statusLabel, activeLabel, totalLabel
 local rows = {}
 
-local textColour = Vector4.new(0.90, 0.84, 0.69, 1)
-local titleColour = Vector4.new(0.95, 0.75, 0.38, 1)
+local textColour = Vector4.new(0.22, 0.16, 0.10, 1)
+local titleColour = Vector4.new(0.38, 0.22, 0.10, 1)
 
 -- Give report headings and values consistent text styling.
 local function label(owner, content, x, y, width, align, colour)
@@ -70,8 +70,8 @@ local function drawTable(report, y)
         background:SetPos(2, y)
         background:SetSize(width - 4, 20)
         background.fill = true
-        background.colour = index % 2 == 0 and Vector4.new(0, 0, 0, 0.1)
-            or Vector4.new(0, 0, 0, 0.3)
+        background.colour = index % 2 == 0 and Vector4.new(0.35, 0.22, 0.10, 0.06)
+            or Vector4.new(0.35, 0.22, 0.10, 0.12)
         background.clickthrough = true
         label(view.content, item.name, 7, y + 1, itemWidth - 2)
         rows[index] = {
@@ -110,7 +110,7 @@ local function buildSession()
     view:AddSprite(id.Sprite.RS3_ICON_INFO, {
         x = 5 + utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "Active time: 00:00:00") + 5,
         y = y + 1, size = 16, absolute = true,
-        tooltip = { text = "Active time pauses after 30 seconds without a tracked resource gain and resumes on the next gain.",
+        tooltip = { text = "Active time pauses after one minute without a tracked resource gain and resumes on the next gain.",
             maxWidth = 260 }
     })
     y = y + 25
@@ -130,14 +130,14 @@ local function buildHistory()
     -- Keep the picker outside the report view so its popup is not clipped.
     -- PrettyUI's ComboBox also handles client builds that interpret selected
     -- entry IDs as sorted positions rather than their explicit values.
-    local pickerWidth = root.width - 150
+    local pickerWidth = root.width - 184
     if pickerWidth > 220 then pickerWidth = 220 end
     local choices = {}
     for index, day in ipairs(days) do
         choices[#choices + 1] = { text = day, id = index }
     end
     prettyui.ComboBox.new(root, {
-        x = 6, y = 31, width = pickerWidth, height = 22,
+        x = 20, y = 45, width = pickerWidth, height = 22,
         entries = choices, selectedID = historyIndex,
         maxVisibleEntries = 8, disabled = not hasHistory,
         -- Switch the history report to the chosen saved day.
@@ -161,7 +161,7 @@ local function buildHistory()
             historyClearArmed = true
             rebuild = true
         end
-    end, { x = pickerWidth + 10, y = 31, width = 130, height = 22 })
+    end, { x = pickerWidth + 28, y = 45, width = 130, height = 22 })
     if not hasHistory then
         historyClearArmed = false
         label(view.content, "No daily history yet.", 5, 31, view.contentWidth - 10)
@@ -196,6 +196,13 @@ local function build()
     local width, height = window.viewport.width, window.viewport.height
     root = ui.Layer.new(window.content)
     root:SetSize(width, height)
+    -- The in-game parchment sprite stays behind the report as the PrettyUI
+    -- viewport changes size; the view keeps its own scrolling and clipping.
+    local parchment = ui.Sprite.new(root)
+    parchment:SetPos(2, 27)
+    parchment:SetSize(width - 4, height - 29)
+    parchment.spriteID = id.Sprite.RS3_PARCHMENT_SCROLL_BACKGROUND
+    parchment.clickthrough = true
     local tabWidth = math.floor((width - 6) / 2)
     local pages = {
         { id = "session", text = "This session" },
@@ -210,7 +217,7 @@ local function build()
         end, { x = 2 + (index - 1) * (tabWidth + 2), y = 2, width = tabWidth, height = 22 })
     end
     view = prettyui.SimpleView.new(root, {
-        x = 2, y = 27, width = width - 4, height = math.max(1, height - 29)
+        x = 18, y = 43, width = width - 36, height = math.max(1, height - 61)
     })
     if page == "session" then
         buildSession()

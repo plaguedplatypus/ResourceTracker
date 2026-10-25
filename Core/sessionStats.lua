@@ -3,7 +3,7 @@ local catalog = require("catalog/resourceCatalog")
 local stats = {}
 -- A pause stops active-time accumulation. The first gain after login starts
 -- a session, and logout ends it through the native game-state event.
-local pauseSeconds = 30
+local pauseSeconds = 60
 
 -- Session and daily tables use the same resource key as the main tracker.
 local function addItem(items, update)
@@ -94,7 +94,7 @@ local function total(items)
     return count
 end
 
--- The UI adds up to 30 seconds after the most recent gain without writing every client tick to PersistentDB.
+-- The UI adds up to one minute after the most recent gain without writing every client tick to PersistentDB.
 function stats.current(data, timestamp)
     local current = data.current
     if not current then
