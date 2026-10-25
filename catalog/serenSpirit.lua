@@ -14,6 +14,8 @@ return {
     ["Off-hand dragon longsword"] = 25740,
     ["Molten glass"] = 1775,
     ["Runite stone spirit"] = 44808,
+    ["Super restore (4)"] = 3024,
+    ["Prayer potion (4)"] = 2434,
 
     -- Super rare table. Shared rewards are listed only once, above.
     ["Hazelmere's signet ring"] = 39814,

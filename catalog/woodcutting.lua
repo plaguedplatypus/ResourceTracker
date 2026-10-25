@@ -12,9 +12,6 @@ return {
         ["Magic logs"] = 1513,
         ["Elder logs"] = 29556,
         ["Eternal magic logs"] = 58250,
-    },
-
-    ["Other Logs"] = {
         ["Achey tree logs"] = 2862,
         ["Jungle logs"] = 47942,
         ["Arctic pine logs"] = 10810,
