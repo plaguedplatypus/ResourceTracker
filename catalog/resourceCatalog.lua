@@ -1,5 +1,6 @@
 local materials = require("catalog/archaeology/materials")
 local artefacts = require("catalog/archaeology/artefacts")
+local finds = require("catalog/archaeology/finds")
 local mining = require("catalog/mining")
 local woodcutting = require("catalog/woodcutting")
 local fishing = require("catalog/fishing")
@@ -24,6 +25,20 @@ local categories = {
     { id = "divination", label = "Divination" },
     { id = "hunter", label = "Hunter" },
     { id = "seren", label = "Spirits" }
+}
+
+-- Dig sites follow their first Archaeology level instead of their names.
+-- Keep this order separate from group labels and resource definitions.
+local archaeologyOrder = {
+    ["Kharid-et"] = 1,
+    ["Infernal Source"] = 2,
+    ["Everlight"] = 3,
+    ["Moonrise"] = 4,
+    ["Senntisten"] = 5,
+    ["Stormguard"] = 6,
+    ["Daemonheim"] = 7,
+    ["Warforge"] = 8,
+    ["Orthen"] = 9
 }
 
 -- Game messages, inventory names, and catalog entries use slightly different
@@ -67,6 +82,9 @@ end
 
 for name, entry in pairs(materials) do
     add(name, "archaeology", entry.sites, entry.id)
+end
+for name, itemId in pairs(finds) do
+    add(name, "archaeology", { "Rare finds" }, itemId)
 end
 for site, names in pairs(artefacts) do
     for _, name in ipairs(names) do
@@ -173,10 +191,16 @@ function catalog.getGroups(skill)
     for group in pairs(groupsBySkill[skill] or {}) do
         result[#result + 1] = group
     end
-    -- Present subgroup names in a stable order after All groups.
+    -- Sites follow level order, while catch-all finds sit after ordinary groups.
+    local function order(group)
+        if group == "all" then return 0 end
+        if group == "Rare finds" or group:lower():match("^other") then return 100 end
+        if skill == "archaeology" then return archaeologyOrder[group] or 90 end
+        return 1
+    end
     table.sort(result, function(a, b)
-        if a == "all" then return true end
-        if b == "all" then return false end
+        local first, second = order(a), order(b)
+        if first ~= second then return first < second end
         return a < b
     end)
     return result

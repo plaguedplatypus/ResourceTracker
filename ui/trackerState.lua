@@ -203,6 +203,13 @@ function trackerState.getSession()
     return report
 end
 
+-- A manual boundary clears only this session. The next tracked gain starts
+-- another report, while daily history and the main tracker keep their totals.
+function trackerState.newSession()
+    if not ready then return end
+    if sessionStats.reset(data.session, elapsed) then save() end
+end
+
 -- Supply newest-first day labels for the history picker.
 function trackerState.getSessionDays()
     return sessionStats.days(data.session)

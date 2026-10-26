@@ -71,6 +71,7 @@ Event.Logic.Subscribe("resourceTrackerUiLogic", function()
     -- Queue UI clicks for the Logic event so state changes happen in one place.
     trackerState.tick()
     panel.tick()
+    session.resize()
     local changed = panel.flushActions()
     uiTicks = uiTicks + 1
     if not trackerState.isReady() and uiTicks % 20 == 0 then openData() end

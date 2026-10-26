@@ -169,4 +169,13 @@ function stats.close(data)
     data.current = nil
 end
 
+-- Finish the current active interval before starting a fresh report. Daily
+-- history keeps its gains and time across manual session boundaries.
+function stats.reset(data, timestamp)
+    if not data.current then return false end
+    if data.current.lastGainAt then settle(data, timestamp) end
+    data.current = nil
+    return true
+end
+
 return stats

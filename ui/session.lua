@@ -3,7 +3,7 @@ local state = require("ui/trackerState")
 local session = {}
 -- PrettyUI supplies the movable, resizable window. The report view is rebuilt
 -- from its current viewport size, so rows follow the player's window size.
-local window, root, view
+local window, root, view, parchment
 local queue
 local isOpen = false
 local page = "session"
@@ -41,7 +41,8 @@ local function duration(seconds)
     return string.format("%02d:%02d:%02d", seconds // 3600, (seconds // 60) % 60, seconds % 60)
 end
 
--- Items per hour uses active time; show no rate before activity starts.
+-- Every item uses the report's shared active time, including time spent
+-- gathering other resources. Show no rate before activity starts.
 local function rate(count, activeSeconds)
     if activeSeconds <= 0 then return "-" end
     return string.format("%.0f", count * 3600 / activeSeconds)
@@ -61,9 +62,15 @@ local function drawTable(report, y)
     local rateWidth = width - 10 - itemWidth - countWidth
     local countX = 5 + itemWidth
     local rateX = countX + countWidth
+    local rateTextWidth = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "Rate")
     label(view.content, "Item", 5, y, itemWidth, nil, titleColour)
     label(view.content, "Count", countX, y, countWidth, ui.AlignMode.CENTRE, titleColour)
-    label(view.content, "Items/hr", rateX, y, rateWidth, ui.AlignMode.CENTRE, titleColour)
+    label(view.content, "Rate", rateX + 5, y, rateTextWidth, nil, titleColour)
+    view:AddSprite(id.Sprite.RS3_ICON_INFO, {
+        x = rateX + 7 + rateTextWidth, y = y + 1, size = 14, absolute = true,
+        tooltip = { text = "Items per active hour in this report. Active time includes gathering other resources.",
+            maxWidth = 260 }
+    })
     y = y + 20
     for index, item in ipairs(report.items) do
         local background = ui.Rectangle.new(view.content)
@@ -91,13 +98,31 @@ local function buildSession()
     local report = state.getSession()
     local y = 4
     label(view.content, "THIS SESSION", 5, y, view.contentWidth - 10, nil, titleColour)
-    -- The session boundary follows the first tracked gain and logout.
+    -- A new session can also be started manually without clearing daily history.
+    local infoX = 10 + utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "THIS SESSION")
     view:AddSprite(id.Sprite.RS3_ICON_INFO, {
-        x = 5 + utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "THIS SESSION") + 5,
+        x = infoX,
         y = y + 1, size = 16, absolute = true,
-        tooltip = { text = "A session starts with the first tracked resource after login and ends when you log out.",
+        tooltip = { text = "A session starts with the first tracked resource after login or after New session. It ends at logout or when you start another session. Daily history keeps all gains.",
             maxWidth = 260 }
     })
+    -- Leave room for PrettyUI's button padding so the label stays readable.
+    local buttonWidth = math.ceil(utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "New session")) + 45
+    -- SimpleView's scrollbar overlays its content. Move the button below the
+    -- heading at narrow widths instead of letting the two controls collide.
+    local buttonX = view.contentWidth - buttonWidth - 22
+    local buttonY = y
+    if buttonX < infoX + 21 then
+        buttonY = y + 23
+        y = y + 23
+    end
+    -- Queue the reset for Logic, where tracker state and PersistentDB are updated.
+    prettyui.SimpleButton.new(view.content, "New session", function()
+        queue(function()
+            state.newSession()
+            rebuild = true
+        end)
+    end, { x = buttonX, y = buttonY, width = buttonWidth, height = 20 })
     y = y + 23
     startedLabel = label(view.content, "Started: " .. (report.started or "-"),
         5, y, view.contentWidth - 10)
@@ -193,12 +218,13 @@ local function build()
         view = nil
     end
     if root then root:Destroy() end
+    parchment = nil
     local width, height = window.viewport.width, window.viewport.height
     root = ui.Layer.new(window.content)
     root:SetSize(width, height)
     -- The in-game parchment sprite stays behind the report as the PrettyUI
     -- viewport changes size; the view keeps its own scrolling and clipping.
-    local parchment = ui.Sprite.new(root)
+    parchment = ui.Sprite.new(root)
     parchment:SetPos(2, 27)
     parchment:SetSize(width - 4, height - 29)
     parchment.spriteID = id.Sprite.RS3_PARCHMENT_SCROLL_BACKGROUND
@@ -232,6 +258,17 @@ local function build()
     rebuild = false
 end
 
+-- Follow PrettyUI's live viewport while dragging a window edge. The report
+-- keeps its slower redraw schedule; only the background changes each tick.
+function session.resize()
+    if not isOpen or not window or not root or not parchment then return end
+    local width, height = window.viewport.width, window.viewport.height
+    if root.width == width and root.height == height then return end
+    if not ui.Interfaces:GetInterface(window.content.interfaceID) then return end
+    root:SetSize(width, height)
+    parchment:SetSize(width - 4, height - 29)
+end
+
 -- Reopen the same draggable window so its player-chosen position is retained.
 function session.open(actionQueue)
     queue = actionQueue
@@ -260,7 +297,7 @@ end
 function session.refresh()
     if not isOpen or not window then return end
     if not ui.Interfaces:GetInterface(window.content.interfaceID) then
-        window, root, view = nil, nil, nil
+        window, root, view, parchment = nil, nil, nil, nil
         return
     end
     if rebuild or not view or shownGeneration ~= state.getGeneration()
@@ -293,7 +330,7 @@ function session.destroy()
     if view then view:Destroy() end
     if root then root:Destroy() end
     if window then window:Destroy() end
-    window, root, view = nil, nil, nil
+    window, root, view, parchment = nil, nil, nil, nil
     isOpen = false
 end
 

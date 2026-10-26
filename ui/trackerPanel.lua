@@ -35,6 +35,7 @@ local pending = {}
 local tabTips = {}
 local editControls = {}
 local editTooltipContexts = {}
+local groupMenu, menuCover
 local iconIds = {}
 local shownRevision, shownSettings, shownWidth, shownHeight = -1, "", 0, 0
 local shownGeneration = -1
@@ -396,9 +397,16 @@ local function drawEditor(owner, itemKey, item, y, width)
     end, 44, item.goal == nil)
 
     -- Pins stay above normal rows in every sort mode and survive reloads.
-    addIcon("PIN", item.pinned and "Unpin resource" or "Pin resource to top", function()
+    local pinButton = ui.Sprite.new(editor)
+    pinButton:SetPos(64, 27)
+    pinButton:SetSize(16, 16)
+    pinButton.spriteID = id.Sprite.ACHIEVEMENT_ICON_PIN_14PX_0
+    pinButton:Subscribe(ui.Hook.ONCLICK, function()
         panel.queue(function() state.setPinned(itemKey, not item.pinned) end)
-    end, 64)
+        return true
+    end)
+    editControls[#editControls + 1] = pinButton
+    attachTip(pinButton, item.pinned and "Unpin resource" or "Pin resource to top")
 
     -- Reset and remove arm on the first click and apply on the second.
     -- Selecting another row clears the armed action.
@@ -465,7 +473,7 @@ drawRows = function(settings, revealSelected)
             artefactHeaderAdded = true
         end
         contentHeight = contentHeight +
-            ((settings.showGoals ~= false and entry.item.goal) and 35 or 23)
+            ((settings.showGoals ~= false and entry.item.goal) and 39 or 23)
         if selected == entry.itemKey then contentHeight = contentHeight + editorHeight() end
     end
     list:SetContentHeight(contentHeight)
@@ -500,7 +508,8 @@ drawRows = function(settings, revealSelected)
         local itemKey, item = entry.itemKey, entry.item
         local count = item.count
         local hasGoal = settings.showGoals ~= false and item.goal ~= nil
-        local rowHeight = hasGoal and 35 or 23
+        -- Leave a small gap below goal progress before the next resource row.
+        local rowHeight = hasGoal and 39 or 23
         local row = ui.Layer.new(list.content)
         row:SetPos(2, rowY)
         row:SetSize(rowWidth, rowHeight)
@@ -564,7 +573,7 @@ drawRows = function(settings, revealSelected)
             local pin = ui.Sprite.new(row)
             pin:SetPos(rowWidth - countWidth - 19, 4)
             pin:SetSize(14, 14)
-            pin.spriteID = id.Sprite.RS3_ICON_PINNED_24PX_0
+            pin.spriteID = id.Sprite.ACHIEVEMENT_ICON_PIN_14PX_0
             pin.clickthrough = true
         end
         local namePixels = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, name)
@@ -631,7 +640,14 @@ local function forgetUi()
     if root then prettyui.Tooltip.unregisterContext(root) end
     selected, draft, armed, marquee = nil, "", nil, nil
     tabTips, editControls, editTooltipContexts = {}, {}, {}
+    groupMenu, menuCover = nil, nil
     list, root = nil, nil
+end
+
+-- Remove the picker before its dock layer is rebuilt or destroyed.
+local function closeGroupMenu()
+    if groupMenu then groupMenu:Destroy(); groupMenu = nil end
+    if menuCover then menuCover:Destroy(); menuCover = nil end
 end
 
 -- PrettyUI views own their children. Destroy the view before its root layer.
@@ -641,12 +657,60 @@ local function destroyUi()
         return
     end
     marquee = nil
+    closeGroupMenu()
     clearEditor()
     for _, tip in ipairs(tabTips) do tip:Destroy() end
     tabTips = {}
     if root then prettyui.Tooltip.unregisterContext(root) end
     if list then list:Destroy(); list = nil end
     if root then root:Destroy(); root = nil end
+end
+
+-- Create the menu after the resource view so it covers that view's scrollbar.
+-- The existing button remains the visible picker; the list supplies scrolling.
+local function openGroupMenu(groups, current, activeGroup, x, y, width)
+    local panelRoot = root
+    local panelWidth, panelHeight = root.width, root.height
+    local menuWidth = math.min(panelWidth - 8, math.max(width, 180))
+    local menuHeight = math.min(#groups * 22 + 2,
+        math.max(46, panelHeight - y - 4))
+    local entries = {}
+    for index, group in ipairs(groups) do
+        entries[index] = {
+            label = groupLabel(group), id = index,
+            backgroundColour = group == activeGroup and 0x4A3D32FF or nil
+        }
+    end
+    -- Catch outside clicks without letting the covered tracker rows act on them.
+    menuCover = ui.Layer.new(root)
+    menuCover:SetSize(panelWidth, panelHeight)
+    local outside = ui.Rectangle.new(menuCover)
+    outside:SetSize(panelWidth, panelHeight)
+    outside.fill = true
+    outside.colour = Vector4.new(0, 0, 0, 0.001)
+    outside:Subscribe(ui.Hook.ONCLICK, function()
+        panel.queue(function()
+            if root == panelRoot then closeGroupMenu() end
+        end)
+        return false
+    end)
+    groupMenu = prettyui.List.new(menuCover, {
+        x = math.min(x, panelWidth - menuWidth - 4), y = y,
+        width = menuWidth, height = menuHeight, entryHeight = 22,
+        entries = entries,
+        onChange = function(_, index, selectedEntry)
+            if not selectedEntry then return end
+            panel.queue(function()
+                if root ~= panelRoot then return end
+                closeGroupMenu()
+                if state.getSettings().category ~= current then
+                    state.setSetting("category", current)
+                end
+                state.setSetting("group", groups[index])
+            end)
+        end
+    })
+    menuCover:MoveToFront()
 end
 
 -- Rebuild when the dock changes size or a display-setting change affects layout. 
@@ -850,23 +914,22 @@ local function build()
     local groups = catalog.getGroups(current)
     if #groups > 1 then
         local group = activeGroup
+        local groupX, groupWidth = sortWidth + 8, width - sortWidth - 12
+        local panelRoot = root
         prettyui.SimpleButton.new(root, groupLabel(group),
-            -- Step through the selected skill's catalog groups.
+            -- Open the site's menu below this unchanged button appearance.
             function()
-                -- Save the next group during Logic for a consistent row redraw.
                 panel.queue(function()
-                    for index, name in ipairs(groups) do
-                        if name == group then
-                            if settings.category ~= current then
-                                state.setSetting("category", current)
-                            end
-                            state.setSetting("group", groups[index % #groups + 1])
-                            break
-                        end
+                    if root ~= panelRoot or not hasUi() then return end
+                    if groupMenu then
+                        closeGroupMenu()
+                    else
+                        openGroupMenu(groups, current, group, groupX,
+                            controlY + 22, groupWidth)
                     end
                 end)
-            end, { x = sortWidth + 8, y = controlY, height = 22,
-                width = width - sortWidth - 12 })
+            end, { x = groupX, y = controlY, height = 22,
+                width = groupWidth })
     end
     local listY = controlY + 25
     list = prettyui.SimpleView.new(root, { x = 2, y = listY,
