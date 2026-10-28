@@ -457,13 +457,6 @@ drawRows = function(settings, revealSelected)
     list.content:DeleteAll()
     local entries = itemsFor(settings)
     local showArtefactSection = selection(settings) == "archaeology"
-    local hasArtefacts = false
-    for _, entry in ipairs(entries) do
-        if entry.artefact and not entry.item.pinned then
-            hasArtefacts = true
-            break
-        end
-    end
     local contentHeight = 4
     local artefactHeaderAdded = false
     for _, entry in ipairs(entries) do
@@ -485,7 +478,7 @@ drawRows = function(settings, revealSelected)
     local selectedBottom
     artefactHeaderAdded = false
     for index, entry in ipairs(entries) do
-        if showArtefactSection and hasArtefacts and entry.artefact
+        if showArtefactSection and entry.artefact
             and not entry.item.pinned and not artefactHeaderAdded then
             local header = ui.Rectangle.new(list.content)
             header:SetPos(2, rowY)

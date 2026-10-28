@@ -7,4 +7,6 @@ return {
     ["Tetracompass piece (dial)"] = 49954,
     ["Tetracompass piece (needle)"] = 49955,
     ["Complete tome"] = 49976,
+    ["Pylon battery"] = 50096,
+    ["Rex skeleton fragments"] = 50753,
 }

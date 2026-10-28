@@ -167,10 +167,6 @@ function catalog.find(name, skillHint)
         local raw = byName["raw " .. normalized]
         return raw and raw.skill == "fishing" and raw or nil
     end
-    if skillHint == "farming" or skillHint == "invention" or skillHint == "archaeology"
-        or skillHint == "mining" or skillHint == "woodcutting" then
-        return nil
-    end
     return nil
 end
 

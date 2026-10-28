@@ -64,5 +64,6 @@ return {
         ["Bark"] = 3239,
         ["Crystal geode"] = 29558,
         ["eternal magic tree branch"] = 58147,
+        ["Splintering arrow tips"] = 52284,
     },
 }

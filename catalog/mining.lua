@@ -59,5 +59,9 @@ return {
         ["Alaea sea salt"] = 37773,
         ["Porcelain clay"] = 59205,
         ["Soft porcelain clay"] = 58998,
+        ["Sedimentary geode"] = 44816,
+        ["Igneous geode"] = 44817,
+        ["Metamorphic geode"] = 44818,
+        ["Deathspore arrow tips"] = 52294,
     },
 }
