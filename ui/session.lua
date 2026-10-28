@@ -62,13 +62,13 @@ local function drawTable(report, y)
     local rateWidth = width - 10 - itemWidth - countWidth
     local countX = 5 + itemWidth
     local rateX = countX + countWidth
-    local rateTextWidth = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "Rate")
+    local rateTextWidth = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "Per/hr")
     label(view.content, "Item", 5, y, itemWidth, nil, titleColour)
     label(view.content, "Count", countX, y, countWidth, ui.AlignMode.CENTRE, titleColour)
-    label(view.content, "Rate", rateX + 5, y, rateTextWidth, nil, titleColour)
+    label(view.content, "Per/hr", rateX + 5, y, rateTextWidth, nil, titleColour)
     view:AddSprite(id.Sprite.RS3_ICON_INFO, {
         x = rateX + 7 + rateTextWidth, y = y + 1, size = 14, absolute = true,
-        tooltip = { text = "Items per active hour in this report. Active time includes gathering other resources.",
+        tooltip = { text = "Items per active hour. <br>Active time includes all gathering sources.",
             maxWidth = 260 }
     })
     y = y + 20
@@ -103,7 +103,7 @@ local function buildSession()
     view:AddSprite(id.Sprite.RS3_ICON_INFO, {
         x = infoX,
         y = y + 1, size = 16, absolute = true,
-        tooltip = { text = "A session starts with the first tracked resource after login or after New session. It ends at logout or when you start another session. Daily history keeps all gains.",
+        tooltip = { text = "A session starts with the first tracked resource after login or after New session. <br><br>It ends at logout or when you start another session. <br>Daily history keeps all gains.",
             maxWidth = 260 }
     })
     -- Leave room for PrettyUI's button padding so the label stays readable.

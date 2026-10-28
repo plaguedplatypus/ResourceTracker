@@ -33,6 +33,7 @@ function persistence.load(accountId)
             and settings.sort or "recent"
         data.settings.showIcons = settings.showIcons ~= false
         data.settings.showGoals = settings.showGoals ~= false
+        data.settings.showArtefacts = settings.showArtefacts ~= false
         if type(settings.hiddenSkills) == "table" then
             data.settings.hiddenSkills = {}
             for skill, hidden in pairs(settings.hiddenSkills) do

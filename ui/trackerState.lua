@@ -184,6 +184,19 @@ function trackerState.remove(itemKey)
     save()
 end
 
+-- Clear one skill's tracker rows; recorded session and daily gains stay intact.
+function trackerState.clearSkill(skill)
+    if not ready then return end
+    local changed = false
+    for itemKey, item in pairs(data.items) do
+        if item.skill == skill then
+            data.items[itemKey] = nil
+            changed = true
+        end
+    end
+    if changed then save() end
+end
+
 -- The dock reads this shared table when it draws catalogued resource rows.
 function trackerState.getItems()
     return data.items

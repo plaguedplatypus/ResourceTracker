@@ -238,7 +238,8 @@ local function itemsFor(settings)
     for itemKey, item in pairs(state.getItems()) do
         local definition = catalog.find(item.name, item.skill)
         if not hidden[item.skill] and (category == "all" or item.skill == category)
-            and (group == "all" or (definition and definition.groups[group])) then
+            and (group == "all" or (definition and definition.groups[group]))
+            and (settings.showArtefacts ~= false or not (definition and definition.artefact)) then
             items[#items + 1] = {
                 itemKey = itemKey,
                 item = item,
@@ -269,7 +270,7 @@ end
 local function signature(settings)
     local parts = { settings.category or "all", settings.group or "all",
         settings.sort or "recent", tostring(settings.showIcons ~= false),
-        tostring(settings.showGoals ~= false) }
+        tostring(settings.showGoals ~= false), tostring(settings.showArtefacts ~= false) }
     for _, category in ipairs(categories) do
         parts[#parts + 1] = tostring((settings.hiddenSkills or {})[category.id] == true)
     end
@@ -472,7 +473,7 @@ drawRows = function(settings, revealSelected)
     list:SetContentHeight(contentHeight)
     local rowWidth, rowY = list.contentWidth - 4, 2
     if #entries == 0 then
-        label(list.content, state.isReady() and "No resources gathered yet."
+        label(list.content, state.isReady() and "No resources to display."
             or "Waiting for account data...", 6, 6, rowWidth - 8, 20)
     end
     local selectedBottom
@@ -944,6 +945,10 @@ end
 
 -- Rebuild for layout changes and redraw rows for ordinary count updates.
 function panel.refresh()
+    -- A tab can be cleared while this panel is closed; discard its old editor selection.
+    if selected and not state.getItems()[selected] then
+        selected, draft, armed = nil, "", nil
+    end
     if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then
         forgetUi()
         return

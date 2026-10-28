@@ -31,7 +31,7 @@ Each row shows a resource, its count, and an icon. When the game does not provid
 Select the same resource again to close its controls.
 
 # Settings, sessions, and history:
-Open the plugin's settings cog in Manage Plugins to control icons, goals, and which skills appear in the tracker.
+Open the plugin's settings cog in Manage Plugins to control icons, goals, artefacts, and which skill tabs appear in the tracker. Turning off Display Artefacts hides artefact rows and the ARTEFACTS heading without deleting their counts. To remove every tracked row from one skill, select Clear beside that tab and then Confirm. Clearing a tab leaves session totals and daily history intact.
 
 Select the Note-Pad tab to open the separate Session window. Use This session to see resources gathered since the first tracked gain after logging in and their items per hour. Active time pauses one minute after the last gain. Logging out ends the session.
 

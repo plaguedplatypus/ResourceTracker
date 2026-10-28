@@ -85,4 +85,4 @@ end)
 -- Enabling while already in game may not emit InventoryAdded for visible containers.
 inventoryTracker.seedContainers()
 openData()
-log("Resource Tracker enabled")
+log("Resource Tracker enabled.")

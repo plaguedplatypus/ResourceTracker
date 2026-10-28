@@ -6,6 +6,7 @@ local settingsPanel = {}
 -- Manage Plugins owns this layer, so keep settings here and use the separate
 -- session window for reports that the player may want to move or resize.
 local parent, root, view
+local armedSkill, needsBuild
 
 local titleColour = Vector4.new(0.95, 0.75, 0.38, 1)
 
@@ -22,8 +23,9 @@ local function title(owner, content, x, y, width)
     value.clickthrough = true
 end
 
--- Lay out display settings and visible skill tabs in the available panel size.
+-- Lay out visible skill tabs and display settings in the available panel size.
 local function build()
+    needsBuild = false
     if view then view:Destroy(); view = nil end
     if root then root:Destroy() end
     root = ui.Layer.new(parent)
@@ -37,21 +39,7 @@ local function build()
     local leftX, gap = 6, 16
     local columnWidth = math.floor((width - leftX * 2 - gap) / 2)
     local rightX = leftX + columnWidth + gap
-    local controlsY = 48
-
-    title(view.content, "RESOURCE TRACKER SETTINGS", leftX, 4, width - leftX * 2)
-    title(view.content, "DISPLAY", leftX, 28, columnWidth)
-    prettyui.CheckboxButton.new(view.content, {
-        { text = "Show item icons", value = "showIcons", selected = settings.showIcons ~= false },
-        { text = "Show goals", value = "showGoals", selected = settings.showGoals ~= false }
-    }, {
-        x = leftX, y = controlsY, width = columnWidth,
-        -- PrettyUI callbacks queue persistent setting edits for Logic.
-        onChange = function(_, _, name, selected)
-            -- Save the chosen display option in the tracker state.
-            trackerPanel.queue(function() state.setSetting(name, selected) end)
-        end
-    })
+    local controlsY = 24
 
     local choices = {}
     local hidden = settings.hiddenSkills or {}
@@ -62,9 +50,18 @@ local function build()
             }
         end
     end
-    title(view.content, "VISIBLE TABS", rightX, 28, columnWidth)
+    local clearWidth = 100
+    local choiceWidth = columnWidth - clearWidth - 6
+    local divider = ui.Rectangle.new(view.content)
+    divider:SetPos(leftX + columnWidth + gap // 2, 4)
+    divider:SetSize(1, controlsY + #choices * 22 - 4)
+    divider.fill = true
+    divider.colour = Vector4.new(0.72, 0.48, 0.18, 0.55)
+    divider.clickthrough = true
+
+    title(view.content, "VISIBLE TABS", leftX, 4, columnWidth)
     prettyui.CheckboxButton.new(view.content, choices, {
-        x = rightX, y = controlsY, width = columnWidth,
+        x = leftX, y = controlsY, width = choiceWidth,
         -- Hiding the current skill also resets the selected tab and group.
         onChange = function(_, _, skill, selected)
             -- Copy the hidden-skill set so other settings retain their values.
@@ -83,6 +80,41 @@ local function build()
                     state.setSetting("category", "all")
                     state.setSetting("group", "all")
                 end
+                armedSkill, needsBuild = nil, true
+            end)
+        end
+    })
+    for index, choice in ipairs(choices) do
+        local skill = choice.value
+        prettyui.SimpleButton.new(view.content,
+            armedSkill == skill and "Confirm" or "Clear", function()
+                -- First click arms this skill; the second removes only its rows.
+                trackerPanel.queue(function()
+                    if armedSkill == skill then
+                        state.clearSkill(skill)
+                        armedSkill = nil
+                    else
+                        armedSkill = skill
+                    end
+                    needsBuild = true
+                end)
+            end, { x = leftX + choiceWidth + 6,
+                y = controlsY + (index - 1) * 22, width = clearWidth, height = 20 })
+    end
+
+    title(view.content, "DISPLAY", rightX, 4, columnWidth)
+    prettyui.CheckboxButton.new(view.content, {
+        { text = "Show item icons", value = "showIcons", selected = settings.showIcons ~= false },
+        { text = "Show goals", value = "showGoals", selected = settings.showGoals ~= false },
+        { text = "Show Artefacts", value = "showArtefacts",
+            selected = settings.showArtefacts ~= false }
+    }, {
+        x = rightX, y = controlsY, width = columnWidth,
+        -- PrettyUI callbacks queue persistent setting edits for Logic.
+        onChange = function(_, _, name, selected)
+            trackerPanel.queue(function()
+                state.setSetting(name, selected)
+                armedSkill, needsBuild = nil, true
             end)
         end
     })
@@ -92,6 +124,7 @@ end
 -- Manage Plugins supplies a fresh content layer when its page opens.
 function settingsPanel.onReady(event)
     parent = event.component
+    armedSkill = nil
     build()
 end
 
@@ -99,17 +132,17 @@ end
 function settingsPanel.refresh()
     if not view then return end
     if not ui.Interfaces:GetInterface(parent.interfaceID) then
-        parent, root, view = nil, nil, nil
+        parent, root, view, armedSkill, needsBuild = nil, nil, nil, nil, nil
         return
     end
-    if parent.width ~= root.width or parent.height ~= root.height then build() end
+    if needsBuild or parent.width ~= root.width or parent.height ~= root.height then build() end
 end
 
 -- Destroy the view before the layer that owns it.
 function settingsPanel.destroy()
     if view then view:Destroy() end
     if root then root:Destroy() end
-    parent, root, view = nil, nil, nil
+    parent, root, view, armedSkill, needsBuild = nil, nil, nil, nil, nil
 end
 
 return settingsPanel
