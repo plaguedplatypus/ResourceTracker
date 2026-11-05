@@ -100,15 +100,6 @@ function stats.current(data, timestamp)
     if not current then
         return { status = "Idle", activeSeconds = 0, total = 0, items = {} }
     end
-    if not current.lastGainAt then
-        return {
-            startedAt = current.startedAt,
-            status = "Idle",
-            activeSeconds = 0,
-            total = 0,
-            items = {}
-        }
-    end
     local activeSeconds = current.activeSeconds + activeSince(current, timestamp)
     local sinceGain = timestamp - current.lastGainAt
     return {

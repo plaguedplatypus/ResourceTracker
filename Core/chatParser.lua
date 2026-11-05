@@ -120,11 +120,11 @@ local function parseTransport(text)
         return nil
     end
     if payload:match("^[%d,]+%s*x%s+") then
-        return splitEntries(payload, hint), metalBank, false, destination
+        return splitEntries(payload, hint), metalBank, false
     end
     local entry = update(payload, 1, hint)
     -- Some transport perks omit quantity; a transmitted metal-bank delta can supply it.
-    return entry and { entry } or nil, metalBank, metalBank, destination
+    return entry and { entry } or nil, metalBank, metalBank
 end
 
 -- Direct gathering messages identify the item for a nearby inventory change.
@@ -166,12 +166,11 @@ function chatParser.parse(rawText)
     if entries then return { method = "invention", entries = entries } end
     entries = parseFarming(text)
     if entries then return { method = "farming", entries = entries } end
-    local metalBank, unknownAmount, destination
-    entries, metalBank, unknownAmount, destination = parseTransport(text)
+    local metalBank, unknownAmount
+    entries, metalBank, unknownAmount = parseTransport(text)
     if entries then
         return { method = "remote", entries = entries,
-            metalBank = metalBank, unknownAmount = unknownAmount,
-            destination = destination, message = text }
+            metalBank = metalBank, unknownAmount = unknownAmount }
     end
     entries = parseDirect(text)
     if entries then return { method = "direct", entries = entries } end

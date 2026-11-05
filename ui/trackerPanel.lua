@@ -35,12 +35,12 @@ local pending = {}
 local tabTips = {}
 local editControls = {}
 local editTooltipContexts = {}
+local tooltipLayer
+local nameAnchor, nameTip
 local groupMenu, menuCover
 local iconIds = {}
 local shownRevision, shownSettings, shownWidth, shownHeight = -1, "", 0, 0
 local shownGeneration = -1
-local marquee
-local marqueeOverflowWidth = 42
 
 -- The Plugin Hub reuses and clears its content layer when switching plugins.
 -- A saved parent reference can remain readable after our children are gone.
@@ -64,51 +64,6 @@ function panel.flushActions()
     pending = {}
     for _, action in ipairs(actions) do action() end
     return true
-end
-
--- Long names advance one character at a time while hovered. 
--- Keeping this local to one label avoids redrawing the list or animating ordinary rows.
-function panel.tick()
-    if not marquee then return end
-    if not hasUi() then
-        marquee = nil
-        return
-    end
-    marquee.elapsed = marquee.elapsed + 0.02
-    if marquee.pause > 0 then
-        marquee.pause = marquee.pause - 0.02
-        return
-    end
-    if marquee.elapsed < 0.14 then return end
-    marquee.elapsed = 0
-    marquee.offset = marquee.offset + marquee.direction
-    if marquee.offset >= marquee.last then
-        marquee.offset, marquee.direction, marquee.pause = marquee.last, -1, 0.7
-    elseif marquee.offset <= 1 then
-        marquee.offset, marquee.direction, marquee.pause = 1, 1, 0.7
-    end
-    marquee.label.content = marquee.text:sub(marquee.offset)
-end
-
--- Scroll only labels that overflow the available row width.
-local function startMarquee(label, text, width)
-    local last = 1
-    for offset = 2, #text do
-        if utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, text:sub(offset)) <= width then
-            last = offset
-            break
-        end
-    end
-    if last > 1 then
-        marquee = { label = label, text = text, last = last, offset = 1,
-            direction = 1, elapsed = 0, pause = 0.7 }
-    end
-end
-
--- Restore the complete name when the pointer leaves its row.
-local function stopMarquee(label, text)
-    if marquee and marquee.label == label then marquee = nil end
-    label.content = text
 end
 
 -- Use the same font and alignment for tracker labels.
@@ -185,6 +140,20 @@ local function clearEditor()
     editTooltipContexts = {}
     for _, control in ipairs(editControls) do control:Destroy() end
     editControls = {}
+end
+
+-- Place the shared name tooltip under the cursor in the scrolled list.
+local function placeNameTip(row, x, y)
+    if not nameTip or not hasUi() then return end
+    local ok, tipX, tipY = pcall(function()
+        local viewPos = list.root.xyGlobal
+        local overlayPos = tooltipLayer.xyGlobal
+        return viewPos.x + row.x + x - overlayPos.x,
+            viewPos.y + row.y + y - list.scrollY - overlayPos.y
+    end)
+    if not ok then return end
+    nameAnchor:SetPos(tipX, tipY)
+    nameTip:Show()
 end
 
 -- Highlight special reward sources without changing their displayed names.
@@ -280,14 +249,12 @@ end
 local drawRows
 
 -- Reserve the same vertical space for every expanded resource editor.
-local function editorHeight()
-    return 47
-end
+local editorHeight = 47
 
 -- The editor is rendered inside the selected row rather than opening a separate window,
 -- so it remains close to the resource being changed.
 local function drawEditor(owner, itemKey, item, y, width)
-    local height = editorHeight()
+    local height = editorHeight
     local editor = ui.Layer.new(owner)
     editor:SetPos(2, y)
     editor:SetSize(width, height)
@@ -297,12 +264,12 @@ local function drawEditor(owner, itemKey, item, y, width)
     background.colour = Vector4.new(0.10, 0.085, 0.06, 0.7)
     background.clickthrough = true
 
-    -- List children are clipped by the dock. Put editor tooltips in the game area instead.
+    -- List children are clipped by the dock. Put editor tooltips above it.
     -- xyGlobal does not include a scroll view's current offset,
     -- so calculate from the list viewport and subtract its scroll position.
-    local tooltipParent = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
+    local tooltipParent = tooltipLayer
     local contextRoot, contextList = root, list
-    -- Convert editor-local positions to game-area coordinates after scrolling.
+    -- Convert editor-local positions to overlay coordinates after scrolling.
     prettyui.Tooltip.registerContext(editor, tooltipParent, function(target)
         -- PrettyUI can finish a drag callback after the Hub replaces our panel.
         if root ~= contextRoot or list ~= contextList then return 0, 0 end
@@ -451,8 +418,8 @@ drawRows = function(settings, revealSelected)
     if not hasUi() then
         return false
     end
-    marquee = nil
     clearEditor()
+    if nameTip then nameTip:Hide() end
     local scroll = list.scrollY
     local height = list.root.height
     list.content:DeleteAll()
@@ -468,7 +435,7 @@ drawRows = function(settings, revealSelected)
         end
         contentHeight = contentHeight +
             ((settings.showGoals ~= false and entry.item.goal) and 39 or 23)
-        if selected == entry.itemKey then contentHeight = contentHeight + editorHeight() end
+        if selected == entry.itemKey then contentHeight = contentHeight + editorHeight end
     end
     list:SetContentHeight(contentHeight)
     local rowWidth, rowY = list.contentWidth - 4, 2
@@ -561,8 +528,7 @@ drawRows = function(settings, revealSelected)
         local name = capitalize(item.name)
         local pinWidth = item.pinned and 16 or 0
         local nameWidth = math.max(1, rowWidth - iconWidth - countWidth - pinWidth - 8)
-        local nameLabel = label(row, name, iconWidth + 3, 1, nameWidth, 21,
-            nameColour(item))
+        label(row, name, iconWidth + 3, 1, nameWidth, 21, nameColour(item))
         if item.pinned then
             local pin = ui.Sprite.new(row)
             pin:SetPos(rowWidth - countWidth - 19, 4)
@@ -570,16 +536,21 @@ drawRows = function(settings, revealSelected)
             pin.spriteID = id.Sprite.ACHIEVEMENT_ICON_PIN_14PX_0
             pin.clickthrough = true
         end
-        local namePixels = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, name)
-        if namePixels > nameWidth + marqueeOverflowWidth then
-            -- Start scrolling an overflowing name only while its row is hovered.
-            row:Subscribe(ui.Hook.ONMOUSEOVER, function()
-                startMarquee(nameLabel, name, nameWidth)
+        if utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, name) > nameWidth then
+            -- Only names clipped by the row need the full-name tooltip.
+            row:Subscribe(ui.Hook.ONMOUSEOVER, function(_, x, y)
+                if nameTip then
+                    nameTip:SetText(name)
+                    placeNameTip(row, x, y)
+                end
                 return true
             end)
-            -- Restore the full name as soon as the pointer leaves.
+            row:Subscribe(ui.Hook.ONMOUSEREPEAT, function(_, x, y)
+                placeNameTip(row, x, y)
+                return true
+            end)
             row:Subscribe(ui.Hook.ONMOUSELEAVE, function()
-                stopMarquee(nameLabel, name)
+                if nameTip then nameTip:Hide() end
                 return true
             end)
         end
@@ -607,7 +578,7 @@ drawRows = function(settings, revealSelected)
         end)
         if selected == itemKey then
             drawEditor(list.content, itemKey, item, rowY + rowHeight, rowWidth)
-            rowHeight = rowHeight + editorHeight()
+            rowHeight = rowHeight + editorHeight
             -- The editor is a sibling beneath the row, so draw its selection
             -- outline last around both regions to keep the active item clear.
             local outline = ui.Rectangle.new(list.content)
@@ -632,7 +603,13 @@ end
 -- by the client, so do not try to rebuild rows inside their old parent.
 local function forgetUi()
     if root then prettyui.Tooltip.unregisterContext(root) end
-    selected, draft, armed, marquee = nil, "", nil, nil
+    if nameTip then nameTip:Destroy() end
+    nameAnchor, nameTip = nil, nil
+    if tooltipLayer and ui.Interfaces:GetInterface(tooltipLayer.interfaceID) then
+        tooltipLayer:Destroy()
+    end
+    tooltipLayer = nil
+    selected, draft, armed = nil, "", nil
     tabTips, editControls, editTooltipContexts = {}, {}, {}
     groupMenu, menuCover = nil, nil
     list, root = nil, nil
@@ -650,13 +627,15 @@ local function destroyUi()
         forgetUi()
         return
     end
-    marquee = nil
     closeGroupMenu()
     clearEditor()
     for _, tip in ipairs(tabTips) do tip:Destroy() end
     tabTips = {}
     if root then prettyui.Tooltip.unregisterContext(root) end
     if list then list:Destroy(); list = nil end
+    if nameTip then nameTip:Destroy() end
+    nameAnchor, nameTip = nil, nil
+    if tooltipLayer then tooltipLayer:Destroy(); tooltipLayer = nil end
     if root then root:Destroy(); root = nil end
 end
 
@@ -713,7 +692,8 @@ local function build()
     if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then return end
     destroyUi()
     local width, height = parent.width, parent.height
-    root = ui.Layer.new(parent)
+    -- Dock children inherit this category so they do not exhaust category 0.
+    root = ui.Layer.new(parent, 181)
     root:SetSize(width, height)
     -- Brother Where Art Thou uses this top layer for tips outside its dock.
     -- Map each tab's position into that layer so PrettyUI can choose whichever
@@ -721,6 +701,11 @@ local function build()
     local tooltipParent = ui.Interfaces:GetComponent(
         id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
         or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
+    -- PrettyUI's scroll drag layer also uses this parent. Give it a free category.
+    tooltipLayer = ui.Layer.new(tooltipParent, 182)
+    tooltipLayer:SetSize(0, 0, 1, 1)
+    tooltipLayer.clickthrough = true
+    tooltipParent = tooltipLayer
     local contextRoot = root
     -- Tab tips use top-layer coordinates so they can extend past the dock.
     prettyui.Tooltip.registerContext(root, tooltipParent, function(target)
@@ -929,6 +914,11 @@ local function build()
     list = prettyui.SimpleView.new(root, { x = 2, y = listY,
         width = width - 4, height = math.max(1, height - listY - 2),
         scrollStep = 24 })
+    nameAnchor = ui.Layer.new(tooltipLayer)
+    nameAnchor:SetSize(0, 0)
+    nameAnchor.hidden = true
+    nameTip = prettyui.Tooltip.attach(nameAnchor, tooltipLayer,
+        { text = "", placement = "below" })
     drawRows(settings)
     shownWidth, shownHeight = width, height
     shownSettings, shownRevision = signature(settings), state.getRevision()
@@ -982,7 +972,6 @@ end
 -- Release PrettyUI elements and pending actions when the plugin unloads.
 function panel.destroy()
     pending = {}
-    marquee = nil
     destroyUi()
     parent = nil
 end

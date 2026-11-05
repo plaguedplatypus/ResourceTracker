@@ -70,7 +70,6 @@ local uiTicks = 0
 Event.Logic.Subscribe("resourceTrackerUiLogic", function()
     -- Queue UI clicks for the Logic event so state changes happen in one place.
     trackerState.tick()
-    panel.tick()
     session.resize()
     local changed = panel.flushActions()
     uiTicks = uiTicks + 1
