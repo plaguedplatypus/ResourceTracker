@@ -202,7 +202,7 @@ function trackerState.getItems()
     return data.items
 end
 
--- The dock and Manage Plugins settings read the same saved preferences.
+-- The dock and settings window read the same saved preferences.
 function trackerState.getSettings()
     return data.settings
 end

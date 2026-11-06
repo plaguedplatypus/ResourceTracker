@@ -1,16 +1,15 @@
 local catalog = require("catalog/resourceCatalog")
 local state = require("ui/trackerState")
-local trackerPanel = require("ui/trackerPanel")
 
 local settingsPanel = {}
--- Manage Plugins owns this layer, so keep settings here and use the separate
--- session window for reports that the player may want to move or resize.
-local parent, root, view
+-- Keep the settings form in its own window so the ribbon button can open it.
+local window, root, view, queue
+local isOpen = false
 local armedSkill, needsBuild
 
 local titleColour = Vector4.new(0.95, 0.75, 0.38, 1)
 
--- Keep Manage Plugins section headings consistent with the tracker theme.
+-- Keep settings section headings consistent with the tracker theme.
 local function title(owner, content, x, y, width)
     local value = ui.Text.new(owner)
     value:SetPos(x, y)
@@ -28,10 +27,12 @@ local function build()
     needsBuild = false
     if view then view:Destroy(); view = nil end
     if root then root:Destroy() end
-    root = ui.Layer.new(parent)
-    root:SetSize(parent.width, parent.height)
+    local width, height = window.viewport.width, window.viewport.height
+    -- Reuse this ID after each redraw instead of consuming the shared category 0 IDs.
+    root = ui.Layer.new(window.content, 187, 0)
+    root:SetSize(width, height)
     view = prettyui.SimpleView.new(root, {
-        x = 2, y = 2, width = parent.width - 4, height = math.max(1, parent.height - 4)
+        x = 2, y = 2, width = width - 4, height = math.max(1, height - 4)
     })
 
     local settings = state.getSettings()
@@ -65,7 +66,7 @@ local function build()
         -- Hiding the current skill also resets the selected tab and group.
         onChange = function(_, _, skill, selected)
             -- Copy the hidden-skill set so other settings retain their values.
-            trackerPanel.queue(function()
+            queue(function()
                 local nextHidden = {}
                 for name, value in pairs(state.getSettings().hiddenSkills or {}) do
                     nextHidden[name] = value
@@ -89,7 +90,7 @@ local function build()
         prettyui.SimpleButton.new(view.content,
             armedSkill == skill and "Confirm" or "Clear", function()
                 -- First click arms this skill; the second removes only its rows.
-                trackerPanel.queue(function()
+                queue(function()
                     if armedSkill == skill then
                         state.clearSkill(skill)
                         armedSkill = nil
@@ -112,37 +113,56 @@ local function build()
         x = rightX, y = controlsY, width = columnWidth,
         -- PrettyUI callbacks queue persistent setting edits for Logic.
         onChange = function(_, _, name, selected)
-            trackerPanel.queue(function()
+            queue(function()
                 state.setSetting(name, selected)
                 armedSkill, needsBuild = nil, true
             end)
         end
     })
-    view:SetContentHeight(view.root.height)
+    view:SetContentHeight(math.max(view.root.height, controlsY + #choices * 22 + 4))
 end
 
--- Manage Plugins supplies a fresh content layer when its page opens.
-function settingsPanel.onReady(event)
-    parent = event.component
+-- Reopen the same movable window so its position and size survive closing it.
+function settingsPanel.open(actionQueue)
+    queue = actionQueue
+    if not window then
+        local gameArea = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
+        if not gameArea then return end
+        window = prettyui.Window.new(gameArea, {
+            title = "Resource Tracker settings",
+            x = -305, y = -200, xAnchor = 0.5, yAnchor = 0.5,
+            width = 610, height = 400,
+            resizable = true, minWidth = 500, minHeight = 330,
+            scrollable = false,
+            onClose = function() isOpen = false end
+        })
+    end
     armedSkill = nil
-    build()
+    needsBuild = true
+    isOpen = true
+    window:Show()
+    settingsPanel.refresh()
 end
 
--- Reflow controls when Manage Plugins changes size.
+-- Reflow the form after settings edits or a window resize.
 function settingsPanel.refresh()
-    if not view then return end
-    if not ui.Interfaces:GetInterface(parent.interfaceID) then
-        parent, root, view, armedSkill, needsBuild = nil, nil, nil, nil, nil
+    if not isOpen or not window then return end
+    if not ui.Interfaces:GetInterface(window.content.interfaceID) then
+        window, root, view, armedSkill, needsBuild = nil, nil, nil, nil, nil
+        isOpen = false
         return
     end
-    if needsBuild or parent.width ~= root.width or parent.height ~= root.height then build() end
+    if needsBuild or not view or root.width ~= window.viewport.width
+        or root.height ~= window.viewport.height then build() end
 end
 
--- Destroy the view before the layer that owns it.
+-- Destroy the form before its window when the plugin unloads.
 function settingsPanel.destroy()
     if view then view:Destroy() end
     if root then root:Destroy() end
-    parent, root, view, armedSkill, needsBuild = nil, nil, nil, nil, nil
+    if window then window:Destroy() end
+    window, root, view, queue, armedSkill, needsBuild = nil, nil, nil, nil, nil, nil
+    isOpen = false
 end
 
 return settingsPanel

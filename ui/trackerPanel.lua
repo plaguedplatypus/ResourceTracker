@@ -1,6 +1,9 @@
 local catalog = require("catalog/resourceCatalog")
 local state = require("ui/trackerState")
 local session = require("ui/session")
+local settingsPanel = require("ui/settingsPanel")
+local ribbonToggle = require("ui/ribbonToggle")
+local manageSettings = require("ui/manageSettings")
 
 local panel = {}
 -- The dock panel owns presentation and click handling. 
@@ -80,6 +83,26 @@ local function label(owner, value, x, y, width, height, tint, right)
     return component
 end
 
+-- Share the game's compact hover styling across tabs, names, and row controls.
+local function tipSize(text)
+    local font = config.Font.MUSEO_SANS_11PT_REGULAR
+    local width = math.max(21, math.min(240, font:GetStringWidth(text, false) + 16))
+    local height = font:GetStringHeightAndLineCount(text, width - 16,
+        font.baseline, false, false, false) + 10
+    return width, height
+end
+
+local function compactTip(target, parent, text)
+    local width, height = 21, 21
+    if text ~= "" then width, height = tipSize(text) end
+    local tip = prettyui.Tooltip.attach(target, parent,
+        { text = text, placement = "above", boundsMargin = 0,
+            width = width, height = height })
+    tip.label.font = id.Font.MUSEO_SANS_11PT_REGULAR
+    tip.label.alignVertical = ui.AlignMode.CENTRE
+    return tip
+end
+
 -- Keep item names readable after catalog normalization.
 local function capitalize(name)
     return name:gsub("^%l", string.upper)
@@ -142,17 +165,19 @@ local function clearEditor()
     editControls = {}
 end
 
--- Place the shared name tooltip under the cursor in the scrolled list.
-local function placeNameTip(row, x, y)
+-- Keep the full name above its clipped label as the list scrolls.
+local function placeNameTip(row, nameX, nameWidth)
     if not nameTip or not hasUi() then return end
     local ok, tipX, tipY = pcall(function()
         local viewPos = list.root.xyGlobal
         local overlayPos = tooltipLayer.xyGlobal
-        return viewPos.x + row.x + x - overlayPos.x,
-            viewPos.y + row.y + y - list.scrollY - overlayPos.y
+        return viewPos.x + row.x + nameX + nameWidth / 2 - overlayPos.x,
+            viewPos.y + row.y - list.scrollY - overlayPos.y
     end)
     if not ok then return end
-    nameAnchor:SetPos(tipX, tipY)
+    tipX = math.max(0, math.min(tipX - nameTip.width / 2,
+        tooltipLayer.width - nameTip.width))
+    nameAnchor:SetPos(tipX, tipY + 3)
     nameTip:Show()
 end
 
@@ -269,6 +294,7 @@ local function drawEditor(owner, itemKey, item, y, width)
     -- so calculate from the list viewport and subtract its scroll position.
     local tooltipParent = tooltipLayer
     local contextRoot, contextList = root, list
+    local tips = {}
     -- Convert editor-local positions to overlay coordinates after scrolling.
     prettyui.Tooltip.registerContext(editor, tooltipParent, function(target)
         -- PrettyUI can finish a drag callback after the Hub replaces our panel.
@@ -279,14 +305,22 @@ local function drawEditor(owner, itemKey, item, y, width)
             return listPos.x + (editor.x or 0) + (target.x or 0) - parentPos.x,
                 listPos.y + (editor.y or 0) + (target.y or 0) - contextList.scrollY - parentPos.y
         end)
-        if ok then return x, y end
+        if ok then
+            local tip = tips[target]
+            if tip then
+                x = x + (target.width - tip.width) / 2
+                x = math.max(0, math.min(x, tooltipParent.width - tip.width))
+                y = y + 3
+            end
+            return x, y
+        end
         return 0, 0
     end)
     editTooltipContexts[#editTooltipContexts + 1] = editor
 
     -- Place editor control tips through the registered game-area context.
     local function attachTip(button, text)
-        prettyui.Tooltip.attach(button, editor, { text = text, placement = "right" })
+        tips[button] = compactTip(button, editor, text)
     end
 
     local innerWidth = width - 8
@@ -528,7 +562,8 @@ drawRows = function(settings, revealSelected)
         local name = capitalize(item.name)
         local pinWidth = item.pinned and 16 or 0
         local nameWidth = math.max(1, rowWidth - iconWidth - countWidth - pinWidth - 8)
-        label(row, name, iconWidth + 3, 1, nameWidth, 21, nameColour(item))
+        local nameX = iconWidth + 3
+        label(row, name, nameX, 1, nameWidth, 21, nameColour(item))
         if item.pinned then
             local pin = ui.Sprite.new(row)
             pin:SetPos(rowWidth - countWidth - 19, 4)
@@ -538,15 +573,16 @@ drawRows = function(settings, revealSelected)
         end
         if utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, name) > nameWidth then
             -- Only names clipped by the row need the full-name tooltip.
-            row:Subscribe(ui.Hook.ONMOUSEOVER, function(_, x, y)
+            row:Subscribe(ui.Hook.ONMOUSEOVER, function()
                 if nameTip then
+                    nameTip.options.width, nameTip.options.height = tipSize(name)
                     nameTip:SetText(name)
-                    placeNameTip(row, x, y)
+                    placeNameTip(row, nameX, nameWidth)
                 end
                 return true
             end)
-            row:Subscribe(ui.Hook.ONMOUSEREPEAT, function(_, x, y)
-                placeNameTip(row, x, y)
+            row:Subscribe(ui.Hook.ONMOUSEREPEAT, function()
+                placeNameTip(row, nameX, nameWidth)
                 return true
             end)
             row:Subscribe(ui.Hook.ONMOUSELEAVE, function()
@@ -602,6 +638,8 @@ end
 -- before the next Logic refresh. Those components were already destroyed
 -- by the client, so do not try to rebuild rows inside their old parent.
 local function forgetUi()
+    ribbonToggle.close()
+    manageSettings.detach()
     if root then prettyui.Tooltip.unregisterContext(root) end
     if nameTip then nameTip:Destroy() end
     nameAnchor, nameTip = nil, nil
@@ -631,6 +669,8 @@ local function destroyUi()
     clearEditor()
     for _, tip in ipairs(tabTips) do tip:Destroy() end
     tabTips = {}
+    ribbonToggle.detach()
+    manageSettings.detach()
     if root then prettyui.Tooltip.unregisterContext(root) end
     if list then list:Destroy(); list = nil end
     if nameTip then nameTip:Destroy() end
@@ -717,7 +757,18 @@ local function build()
             return rootPos.x + (target.x or 0) - parentPos.x,
                 rootPos.y + (target.y or 0) - parentPos.y
         end)
-        if ok then return x, y end
+        if ok then
+            -- Centre each tip over its tab, then shift it at the screen edge.
+            for _, tip in ipairs(tabTips) do
+                if tip.target == target then
+                    x = x + (target.width - tip.width) / 2
+                    x = math.max(0, math.min(x, tooltipParent.width - tip.width))
+                    y = y + 3
+                    break
+                end
+            end
+            return x, y
+        end
         return 0, 0
     end)
     local settings = state.getSettings()
@@ -808,8 +859,7 @@ local function build()
         panel.queue(function() session.open(panel.queue) end)
         return true
     end)
-    tabTips[#tabTips + 1] = prettyui.Tooltip.attach(sessionTab, root,
-        "Session and daily history")
+    tabTips[#tabTips + 1] = compactTip(sessionTab, root, "Session and daily history")
     local sessionIcon = ui.Sprite.new(sessionTab)
     sessionIcon:SetPos(2, 2)
     sessionIcon:SetSize(24, 24)
@@ -850,7 +900,7 @@ local function build()
             end)
             return true
         end)
-        tabTips[#tabTips + 1] = prettyui.Tooltip.attach(tab, root, entry.label)
+        tabTips[#tabTips + 1] = compactTip(tab, root, entry.label)
         if icons[skill] then
             local icon = ui.Sprite.new(tab)
             icon:SetPos(2, 2)
@@ -878,6 +928,8 @@ local function build()
     local controlY = 35
     local sortWidth = 68
     local sort = settings.sort or "recent"
+    ribbonToggle.attach(parent, panel.queue, hasUi, build)
+    manageSettings.attach(panel.queue, hasUi, settingsPanel.open)
     -- Cycle the order used by the visible resource rows.
     prettyui.SimpleButton.new(root, sortLabels[sort], function()
         -- Persist the next sort mode before the panel rebuilds.
@@ -917,8 +969,7 @@ local function build()
     nameAnchor = ui.Layer.new(tooltipLayer)
     nameAnchor:SetSize(0, 0)
     nameAnchor.hidden = true
-    nameTip = prettyui.Tooltip.attach(nameAnchor, tooltipLayer,
-        { text = "", placement = "below" })
+    nameTip = compactTip(nameAnchor, tooltipLayer, "")
     drawRows(settings)
     shownWidth, shownHeight = width, height
     shownSettings, shownRevision = signature(settings), state.getRevision()
@@ -973,6 +1024,7 @@ end
 function panel.destroy()
     pending = {}
     destroyUi()
+    ribbonToggle.close()
     parent = nil
 end
 

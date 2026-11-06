@@ -25,7 +25,6 @@ function PluginShutdown()
     Event.ServerLogic.Unsubscribe("resourceTrackerServerLogic")
     Event.GameStateChanged.Unsubscribe("resourceTrackerGameStateChanged")
     Event.ContentLayerReady.Unsubscribe("resourceTrackerContentLayerReady")
-    Event.SettingsLayerReady.Unsubscribe("resourceTrackerSettingsLayerReady")
     Event.Logic.Unsubscribe("resourceTrackerUiLogic")
     panel.destroy()
     settingsPanel.destroy()
@@ -63,7 +62,6 @@ Event.GameStateChanged.Subscribe("resourceTrackerGameStateChanged", function(eve
     session.refresh()
 end)
 Event.ContentLayerReady.Subscribe("resourceTrackerContentLayerReady", panel.onReady)
-Event.SettingsLayerReady.Subscribe("resourceTrackerSettingsLayerReady", settingsPanel.onReady)
 
 local uiTicks = 0
 -- Tick the UI clock and apply player actions outside PrettyUI callbacks.
