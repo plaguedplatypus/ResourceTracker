@@ -20,7 +20,7 @@ Only supported gains are counted. The tracker starts recording new gains while t
 
 Open Resource Tracker from the Plugin Hub ribbon and gather a supported resource. It appears as a row with its name, icon, and count. If the game does not provide an item icon, the tracker shows the related skill icon.
 
-Use the icon tabs to view a skill, or choose **ALL** to see resources across all visible skills. The arrows reveal tabs that do not fit in the panel.
+Use the icon tabs to view a skill or resource, or choose **ALL** to see resources across all visible skills. The arrows reveal tabs that do not fit in the panel.
 
 Sort rows by **Recent**, **A-Z**, or **Count**. Some skills also offer additional item and zone filters.
 
@@ -33,9 +33,7 @@ Select a row to open its controls, and select it again to close them:
 
 Manual count corrections change the tracker row without adding to session or daily gathering totals.
 
-The **eye button** at the left of the panel's bottom bar hides or shows the Plugin Hub ribbon. Hiding it gives the tracker more room.
-
-![Setting a resource goal](https://image.modcdn.io/members/20c3/63901461/profile/rtsetgoal.png)
+<img src="https://image.modcdn.io/members/20c3/63901461/profile/2026-11-0802_38_03-runescape.png" alt="Resource Tracker panel" width="358" height="414">
 
 ## Sessions and daily history
 
@@ -47,21 +45,29 @@ Select **New Session** to clear the current session; the next tracked gain start
 
 **Daily History** shows counts and items per hour for each recorded UTC day. Choose a day from the list to review it, or clear the saved history in that window.
 
-![Session and daily history](https://image.modcdn.io/members/20c3/63901461/profile/rtsession2.png)
+<img src="https://image.modcdn.io/members/20c3/63901461/profile/rtsession2.png" alt="Session and daily history" width="400" height="346">
 
 ## Settings and saved progress
 
-Select the **settings button** at the right of the plugin panel's bottom bar to open the Resource Tracker settings window. There you can choose which skill tabs appear and whether to show item icons, goals, and Archaeology artefacts. Hiding artefacts leaves their counts saved.
+Select the **settings button** at the right of Resource Tracker's bottom bar to open its settings window.
+
+<img src="https://image.modcdn.io/members/20c3/63901461/profile/2026-11-0802_43_50-runescape.png" alt="Settings button" width="182" height="119">
+
+There you can choose which skill tabs appear and whether to show item icons, goals, and Archaeology artefacts. Hiding artefacts leaves their counts saved.
 
 To remove every tracker row for one skill, select **Clear** beside that skill and then **Confirm**. This leaves session totals and daily history intact.
 
 Under **Saved Profiles**, choose another character's local save, then select **Use profile** and **Confirm replace**. This copies that profile's counts, goals, settings, and history over the current character's save. The source profile remains available.
 
-Select **Delete all data** and **Confirm delete** to erase Resource Tracker's saved data and character links for every character on this device. Other plugins' data is unaffected.
+Select **Delete all data** and **Confirm delete** to erase Resource Tracker's saved data and characters on the device. Other plugins' data is unaffected.
 
 Counts, goals, settings, and daily history are saved locally for each player account.
 
-![Resource Tracker settings](https://image.modcdn.io/members/20c3/63901461/profile/rt-settings.png)
+<img src="https://image.modcdn.io/members/20c3/63901461/profile/rt-settings.png" alt="Resource Tracker settings" width="450" height="270">
+
+Use the eye button at the left of the bottom bar to hide or show the Plugin Hub ribbon. Hiding it gives the tracker more room.
+
+<img src="https://image.modcdn.io/members/20c3/63901461/profile/ribbon1.png" alt="Plugin Hub ribbon shown" width="300" height="207"> <img src="https://image.modcdn.io/members/20c3/63901461/profile/ribbon2.png" alt="Plugin Hub ribbon hidden" width="300" height="207">
 
 
 ## Requirements
@@ -70,7 +76,7 @@ Resource Tracker requires PrettyUI for its interface.
 
 ## Contact and feedback
 
-Bug reports, feedback, and collaboration ideas are welcome in this page's discussion or the Resource Tracker channel in the [RuneScape Plugin Portal Discord](https://discord.com/channels/1523582684109082645/1561866361783853096).
+Bug reports, feedback, and collaboration ideas are welcome in this page's discussion or the Resource Tracker channel in the [Discord](https://discord.com/channels/1523582684109082645/1561866361783853096).
 
 ## EULA
 
