@@ -6,14 +6,18 @@ local panel = require("ui/trackerPanel")
 local settingsPanel = require("ui/settingsPanel")
 local session = require("ui/session")
 
--- Open the character's persisted record once its required tracking ID arrives.
--- Until then, counting keeps packet data in memory.
+-- A granted ID can arrive after login. Wait for it so a renamed character
+-- cannot start a second save under the new name before its ID arrives.
 local function openData()
-    if trackerState.isReady() or not Player.IsAvailable() then return end
-    -- The tracking ID is transmitted after login and may arrive later.
+    if not Player.IsAvailable() then return end
     local id = Player.GetTrackingID()
-    if id == nil then return end
-    trackerState.open(id)
+    if id == nil and (trackerState.isReady()
+        or Plugin.HasPermission(PluginPermissions.trackingAccess)) then return end
+    local player = Player.GetEntity()
+    -- Wait for the name too, so an existing name-only save can be linked when
+    -- tracking access is first granted.
+    if not player or not player.isValid or player.displayName == "" then return end
+    trackerState.open(id, player.displayName:lower())
 end
 
 -- The client calls this when the plugin is disabled or reloaded.

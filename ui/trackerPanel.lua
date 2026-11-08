@@ -505,7 +505,9 @@ drawRows = function(settings, revealSelected)
         local hasGoal = settings.showGoals ~= false and item.goal ~= nil
         -- Leave a small gap below goal progress before the next resource row.
         local rowHeight = hasGoal and 39 or 23
-        local row = ui.Layer.new(list.content)
+        -- Nonzero categories have a small ID range. Spread large saved
+        -- lists across categories so row labels cannot exhaust the dock UI.
+        local row = ui.Layer.new(list.content, 200 + (index - 1) % 32)
         row:SetPos(2, rowY)
         row:SetSize(rowWidth, rowHeight)
         local background = ui.Rectangle.new(row)

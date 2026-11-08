@@ -1,10 +1,90 @@
 local persistence = {}
--- Keep all tracker data under one stable record name per character.
+-- Keep one local record per character, reachable by ID or linked name.
 local storageName = "resourceTrackerV1"
 
 -- Namespace saved data per account so characters do not share tracker totals.
 local function storageKey(accountId)
     return storageName .. ":" .. tostring(accountId)
+end
+
+-- An ID is the preferred lookup. If this character started with no tracking
+-- permission, link that name-only record to the ID without moving its data.
+function persistence.resolve(id, name)
+    if id then
+        local idAlias = storageName .. ":lookup:id:" .. id
+        local linked = PersistentDB:GetStructuredData(idAlias)
+        if type(linked) ~= "table" or type(linked.account) ~= "string" then linked = nil end
+        local account = linked and linked.account
+        if not account then
+            account = "id:" .. id
+            if name and PersistentDB:CheckExists(storageKey("name:" .. name)) then
+                account = "name:" .. name
+            end
+        end
+        local nameAlias = storageName .. ":lookup:name:" .. name
+        local nameLinked = PersistentDB:SetString(nameAlias, account)
+        local idLinked = PersistentDB:SetStructuredData(idAlias,
+            { account = account, name = name })
+        -- A renamed character must not leave its old name pointing at this save.
+        if nameLinked and idLinked and linked and type(linked.name) == "string"
+            and linked.name ~= name then
+            local oldAlias = storageName .. ":lookup:name:" .. linked.name
+            if PersistentDB:GetString(oldAlias) == account then
+                PersistentDB:Delete(oldAlias)
+            end
+        end
+        return account, nameLinked and idLinked
+    end
+    if name then
+        return PersistentDB:GetString(storageName .. ":lookup:name:" .. name) or "name:" .. name, true
+    end
+end
+
+-- List saved records, not lookup links, so the settings picker shows each
+-- character profile once even when it has both a name and tracking ID.
+function persistence.profiles()
+    local profiles, names = {}, {}
+    local recordPrefix = storageName .. ":"
+    local idPrefix = storageName .. ":lookup:id:"
+    PersistentDB:IterateEntries(function(key, value)
+        if key:sub(1, #idPrefix) == idPrefix and type(value) == "table"
+            and type(value.account) == "string" and type(value.name) == "string" then
+            names[value.account] = value.name
+            names[key:sub(#idPrefix + 1)] = value.name
+        elseif key:sub(1, #recordPrefix) == recordPrefix and type(value) == "table"
+            and type(value.items) == "table" then
+            local account = key:sub(#recordPrefix + 1)
+            -- Older saves used the bare numeric tracking ID as their key.
+            if account:sub(1, 3) == "id:" or account:sub(1, 5) == "name:"
+                or account:match("^%-?%d+$") then
+                local count = 0
+                for _, item in pairs(value.items) do
+                    if type(item) == "table" and type(item.count) == "number" then
+                        count = count + item.count
+                    end
+                end
+                profiles[#profiles + 1] = { account = account, count = count }
+            end
+        end
+        return false
+    end)
+    for _, profile in ipairs(profiles) do
+        profile.name = names[profile.account]
+            or profile.account:match("^name:(.+)$") or "Unknown character"
+    end
+    table.sort(profiles, function(a, b)
+        if a.name ~= b.name then return a.name < b.name end
+        return a.account < b.account
+    end)
+    return profiles
+end
+
+function persistence.exists(accountId)
+    return PersistentDB:CheckExists(storageKey(accountId))
+end
+
+function persistence.clearAll()
+    return PersistentDB:Clear()
 end
 
 -- Persistent data is an external boundary, so reject malformed counts,

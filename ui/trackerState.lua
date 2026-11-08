@@ -8,6 +8,8 @@ local trackerState = {}
 local data = { items = {}, order = 0, settings = {}, session = { days = {} } }
 local accountId
 local ready = false
+local trackedId
+local linkedName
 local waitingSettings = {}
 -- A revision redraws changed data; a generation means login or logout has
 -- replaced the whole record, so panels must also clear their selection.
@@ -60,14 +62,27 @@ local function save()
     revision = revision + 1
 end
 
--- Load the character record after its tracking ID arrives and start a login session.
-function trackerState.open(id)
-    if ready and accountId == id then return end
-    local loaded = persistence.load(id)
+-- Link both identifiers to one record. Gaining tracking permission while a
+-- name-only session is open keeps that same record and its active session.
+function trackerState.open(id, name)
+    local idText = id and tostring(id)
+    if ready and trackedId == idText and linkedName == name then return end
+    local account, linked = persistence.resolve(idText, name)
+    if not account then return end
+    if ready and accountId == account then
+        trackedId, linkedName = idText, linked and name or nil
+        return
+    end
+    if ready then
+        sessionStats.close(data.session)
+        persistence.save(data, accountId)
+    end
+    local loaded = persistence.load(account)
     for name, value in pairs(waitingSettings) do
         loaded.settings[name] = value
     end
-    data, accountId, ready = loaded, id, true
+    data, accountId, trackedId, linkedName, ready = loaded, account, idText,
+        linked and name or nil, true
     -- A gain recorded before the first chat timestamp uses the temporary
     -- Today key. If the timestamp arrived before this record opened, move the
     -- temporary data into the dated entry now.
@@ -95,7 +110,7 @@ function trackerState.unload()
         persistence.save(data, accountId)
     end
     data = { items = {}, order = 0, settings = {}, session = { days = {} } }
-    accountId, ready, waitingSettings = nil, false, {}
+    accountId, ready, trackedId, linkedName, waitingSettings = nil, false, nil, nil, {}
     elapsed, epochOffset = 0, nil
     generation = generation + 1
     revision = revision + 1
@@ -104,6 +119,35 @@ end
 -- Counting waits for the character record before writing gathered resources.
 function trackerState.isReady()
     return ready
+end
+
+function trackerState.getAccount()
+    return accountId
+end
+
+-- Restore a copy for this character; the source profile keeps its own record.
+function trackerState.restoreProfile(account, target)
+    if not ready or accountId ~= target or account == accountId
+        or not persistence.exists(account) then return false end
+    local loaded = persistence.load(account)
+    sessionStats.close(loaded.session)
+    if not persistence.save(loaded, accountId) then return false end
+    data = loaded
+    generation = generation + 1
+    revision = revision + 1
+    return true
+end
+
+-- Clear every character's records and links before the current session can
+-- save its old in-memory state back into the database.
+function trackerState.clearAllData()
+    if not persistence.clearAll() then return false end
+    data = { items = {}, order = 0, settings = {}, session = { days = {} } }
+    accountId, ready, trackedId, linkedName, waitingSettings = nil, false, nil, nil, {}
+    elapsed, epochOffset = 0, nil
+    generation = generation + 1
+    revision = revision + 1
+    return true
 end
 
 -- Chat rewards and backpack observations share one row when they identify
@@ -263,7 +307,7 @@ function trackerState.observeTime(timestamp)
     end
 end
 
--- Keep edits made before the tracking ID arrives, then persist them on open.
+-- Keep edits made before a character record opens, then persist them on open.
 function trackerState.setSetting(name, value)
     if data.settings[name] == value then return end
     data.settings[name] = value

@@ -55,6 +55,10 @@ Select the **settings button** at the right of the plugin panel's bottom bar to 
 
 To remove every tracker row for one skill, select **Clear** beside that skill and then **Confirm**. This leaves session totals and daily history intact.
 
+Under **Saved Profiles**, choose another character's local save, then select **Use profile** and **Confirm replace**. This copies that profile's counts, goals, settings, and history over the current character's save. The source profile remains available.
+
+Select **Delete all data** and **Confirm delete** to erase Resource Tracker's saved data and character links for every character on this device. Other plugins' data is unaffected.
+
 Counts, goals, settings, and daily history are saved locally for each player account.
 
 ![Resource Tracker settings](https://image.modcdn.io/members/20c3/63901461/profile/rt-settings.png)
@@ -76,16 +80,16 @@ This Plugin uses software licensed by Jagex to the developer under the terms of 
 
 | Permission | Why it is needed |
 | --- | --- |
-| `chatAccess` | Identifies resource gains through in-game messages, including porter deliveries, Invention materials, Archaeology materials, and other supported gathering rewards. |
-| `trackingAccess` | Obtains a RuneScape-provided tracking identifier so resource counts, collection goals, session history, and settings can be associated with the correct player account. |
+| `chatAccess` (required) | Identifies resource gains through in-game messages, including porter deliveries, Invention materials, Archaeology materials, and other supported gathering rewards. |
+| `trackingAccess` (optional) | Provides a stable character ID for saving resource counts, goals, session history, and settings. |
 
-Both permissions support accurate resource tracking and account-specific progress. Chat messages are processed to identify relevant resource gains, while the tracking identifier associates saved progress with the appropriate account.
+With tracking access, Resource Tracker links your character name and ID to the same save. It waits for the ID after login so a name change cannot start a separate save. If tracking access is turned off later, the name can still open that save. Without tracking access, the plugin saves under your current character name instead. Granting tracking access later links the ID to that existing save. Changing your name while tracking access is unavailable can make a name-only save inaccessible under the new name.
 
 ## Data Protection (Case 1)
 
 Resource Tracker uses game information made available through the RuneScape API, including resource-related chat messages, inventory item IDs and quantities, and user-entered resource tracking information.
 
-Tracked resource counts, collection goals, and plugin preferences are stored locally using the plugin persistence system.
+Tracked resource counts, collection goals, plugin preferences, and the character name-to-ID link are stored locally using the plugin persistence system.
 
 This information is used solely to provide resource tracking and related functionality within the game.
 

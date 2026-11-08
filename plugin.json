@@ -1,9 +1,10 @@
 {
   "name": "Resource Tracker",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "contactEmailAddress": "direplatypus@outlook.com",
   "hasRibbonIcon": true,
-  "requiredPermissions": ["trackingAccess","chatAccess"],
+  "requiredPermissions": ["chatAccess"],
+  "optionalPermissions": ["trackingAccess"],
   "requiredDependencies": {
     "prettyui": 6398181
   }
