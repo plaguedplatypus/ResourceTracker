@@ -2,6 +2,14 @@
 
 Resource Tracker records supported resources as you gather them, so you can see your totals without counting every drop. Open its compact in-game panel to follow a collection goal, browse resources by skill, or check how much you gathered during a session and each day.
 
+
+## Known Issues
+- Currently waiting for live release for any known issues.
+
+## Additions
+- This is where planned additions will be listed.
+
+
 ## What it tracks
 
 The plugin detects supported gains from your inventory and relevant game messages. It covers Mining, Woodcutting, Fishing, Archaeology, Farming, Divination, Hunter, and Invention resources, along with supported porter deliveries, Invention components, and Seren spirit gifts.
@@ -51,17 +59,12 @@ Counts, goals, settings, and daily history are saved locally for each player acc
 
 ![Resource Tracker settings](https://image.modcdn.io/members/20c3/63901461/profile/rt-settings.png)
 
-## Known Issues
-
-## Additions
 
 ## Requirements
 
 Resource Tracker requires PrettyUI for its interface.
 
 ## Contact and feedback
-
-Email: [direplatypus@outlook.com](mailto:direplatypus@outlook.com)
 
 Bug reports, feedback, and collaboration ideas are welcome in this page's discussion or the Resource Tracker channel in the [RuneScape Plugin Portal Discord](https://discord.com/channels/1523582684109082645/1561866361783853096).
 
