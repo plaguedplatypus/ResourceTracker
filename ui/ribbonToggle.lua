@@ -101,7 +101,8 @@ function toggle.attach(parent, queue, active, redraw)
     end)
     -- Bright eye means the ribbon is shown; dark eye means it is hidden.
     local button = prettyui.SimpleButton.new(eyeRoot,
-        hidden and id.Sprite.AIF_BUTTON_EYE_VIEW_4 or id.Sprite.AIF_BUTTON_EYE_VIEW_0,
+        hidden and id.Sprite.RS3_ICON_WARDROBE_EFFECTS_24PX_4
+            or id.Sprite.RS3_ICON_WARDROBE_EFFECTS_24PX_0,
         function()
             queue(function()
                 -- A queued click may run after another plugin replaces this page.
@@ -111,9 +112,12 @@ function toggle.attach(parent, queue, active, redraw)
                 resizeContent()
                 redraw()
             end)
-        end, { width = 24, height = 24, iconSize = 16,
+        end, { width = 24, height = 24, iconSize = 24,
             tooltip = { text = tipText, placement = "above", boundsMargin = 0,
                 width = tipWidth, height = tipHeight } })
+    -- PrettyUI caps the icon at 16px in this button; match the Hub's 24px icons.
+    button.content:SetPos(0, 0)
+    button.content:SetSize(24, 24)
     -- Match the game's compact hover text; PrettyUI handles vertical placement.
     button.tooltip.label.font = id.Font.MUSEO_SANS_11PT_REGULAR
     button.tooltip.label.alignVertical = ui.AlignMode.CENTRE

@@ -12,6 +12,7 @@ local categories = catalog.getCategories()
 local sorts = { "recent", "name", "count" }
 local sortLabels = { recent = "Recent", name = "A-Z", count = "Count" }
 local icons = {
+    all = id.Sprite.RS3_ICON_SEND_TO_BACKPACK,
     mining = id.Sprite.STATICONS_HIGH_RES_CLEAN_12,
     woodcutting = id.Sprite.STATICONS_HIGH_RES_CLEAN_17,
     fishing = id.Sprite.STATICONS_HIGH_RES_CLEAN_14,
@@ -334,42 +335,13 @@ local function drawEditor(owner, itemKey, item, y, width)
     editControls[#editControls + 1] = field
 
     -- Create a PrettyUI action icon and attach its editor tooltip.
-    local function addIcon(sprite, tip, action, x, disabled)
+    local function addIcon(sprite, tip, action, x, disabled, size)
+        size = size or 16
         local button = prettyui.SpriteButton.new(editor, sprite, action, {
-            x = x, y = 27, size = 16, disabled = disabled
+            x = x, y = 35 - size / 2, size = size, disabled = disabled
         })
         editControls[#editControls + 1] = button
         attachTip(button.root, tip)
-        return button
-    end
-
-    -- Use plugin images for actions without a suitable built-in sprite.
-    local function addImageIcon(resource, tip, action, x, disabled, highlighted)
-        local button = ui.Layer.new(editor)
-        button:SetPos(x, 27)
-        button:SetSize(16, 16)
-        button.clickthrough = disabled == true
-        local image = Plugin.resources and
-            (Plugin.resources[resource] or Plugin.resources[resource .. ".png"])
-        if image and not image.loaded then image:Load() end
-        if image and image.loaded then
-            local icon = ui.Sprite.new(button)
-            icon:SetSize(16, 16)
-            icon.sprite = image
-            if highlighted then icon.colour = Vector4.new(1, 0.18, 0.12, 1) end
-            icon.clickthrough = true
-        else
-            label(button, "?", 0, 0, 16, 16)
-        end
-        if not disabled then
-            -- Match PrettyUI button behavior for the plugin image control.
-            button:Subscribe(ui.Hook.ONCLICK, function()
-                action()
-                return true
-            end)
-        end
-        editControls[#editControls + 1] = button
-        attachTip(button, tip)
         return button
     end
 
@@ -412,7 +384,8 @@ local function drawEditor(owner, itemKey, item, y, width)
 
     -- Reset and remove arm on the first click and apply on the second.
     -- Selecting another row clears the armed action.
-    addImageIcon("reset_count", "Reset count (click twice)", function()
+    -- Use 20px slots so the refresh and bin symbols remain legible.
+    local reset = addIcon("REFRESH", "Reset count (click twice)", function()
         if armed == "reset" then
             -- The confirmed reset changes only this resource's current count.
             panel.queue(function()
@@ -426,9 +399,10 @@ local function drawEditor(owner, itemKey, item, y, width)
                 drawRows(state.getSettings(), true)
             end)
         end
-    end, width - 40, false, armed == "reset")
+    end, width - 42, false, 20)
+    if armed == "reset" then reset.root.colour = Vector4.new(1, 0.18, 0.12, 1) end
     -- Removing a row requires the same two-click confirmation as reset.
-    addImageIcon("delete_item", "Remove resource (click twice)", function()
+    local remove = addIcon("TRASH", "Remove resource (click twice)", function()
         if armed == "remove" then
             -- The confirmed action removes the row from saved tracker state.
             panel.queue(function()
@@ -442,7 +416,8 @@ local function drawEditor(owner, itemKey, item, y, width)
                 drawRows(state.getSettings(), true)
             end)
         end
-    end, width - 20, false, armed == "remove")
+    end, width - 22, false, 20)
+    if armed == "remove" then remove.root.colour = Vector4.new(1, 0.18, 0.12, 1) end
 end
 
 -- Keep PrettyUI's scroll view alive. Recreating it during a server update
@@ -793,7 +768,9 @@ local function build()
     tabEdge.clickthrough = true
     -- Reserve one fixed tab for the separate session window. Skill tabs still
     -- scroll, but the report button stays reachable at every panel width.
-    local slots = math.max(1, math.floor((width - 60) / tabWidth))
+    local tabLeft, tabRight = 44, width - 15
+    -- Keep one pixel clear of the right arrow while fitting as many tabs as possible.
+    local slots = math.max(1, math.floor((tabRight - tabLeft - 1) / tabWidth))
     local maxOffset = math.max(0, #visible - slots)
     tabOffset = math.min(tabOffset, maxOffset)
     -- Keep the chosen skill in view when the category or panel width changes.
@@ -836,8 +813,8 @@ local function build()
         end)
     end
     -- Only show an arrow when tabs are available beyond that edge.
-    if tabOffset > 0 then addArrow("left", 30, -1) end
-    if tabOffset < maxOffset then addArrow("right", width - 15, 1) end
+    if tabOffset > 0 then addArrow("left", tabLeft - 14, -1) end
+    if tabOffset < maxOffset then addArrow("right", tabRight, 1) end
     local sessionTab = ui.Layer.new(root)
     sessionTab:SetPos(1, 3)
     sessionTab:SetSize(tabWidth, tabHeight)
@@ -861,16 +838,21 @@ local function build()
         panel.queue(function() session.open(panel.queue) end)
         return true
     end)
-    tabTips[#tabTips + 1] = compactTip(sessionTab, root, "Session and daily history")
+    tabTips[#tabTips + 1] = compactTip(sessionTab, root, "Session and Daily History")
     local sessionIcon = ui.Sprite.new(sessionTab)
     sessionIcon:SetPos(2, 2)
     sessionIcon:SetSize(24, 24)
     sessionIcon.spriteID = id.Sprite.STONEMENUSIDEICONS_15
     sessionIcon.clickthrough = true
+    -- Keep the arrow gap in wide docks; centre the tabs only when paging.
+    local tabStart = tabLeft
+    if maxOffset > 0 then
+        tabStart = tabLeft + math.floor((tabRight - tabLeft - slots * tabWidth) / 2)
+    end
     for index = tabOffset + 1, math.min(#visible, tabOffset + slots) do
         local entry = visible[index]
         local skill = entry.id
-        local x, y = 44 + (index - tabOffset - 1) * tabWidth, 3
+        local x, y = tabStart + (index - tabOffset - 1) * tabWidth, 3
         -- Sprite components cannot own children; the layer holds the tab
         -- background, skill icon, and optional text.
         local tab = ui.Layer.new(root)
@@ -905,8 +887,8 @@ local function build()
         tabTips[#tabTips + 1] = compactTip(tab, root, entry.label)
         if icons[skill] then
             local icon = ui.Sprite.new(tab)
-            icon:SetPos(2, 2)
-            icon:SetSize(24, 24)
+            icon:SetPos(1, 1)
+            icon:SetSize(25, 27)
             icon.spriteID = icons[skill]
             icon.clickthrough = true
         elseif skill == "seren" then
@@ -921,10 +903,6 @@ local function build()
             else
                 label(tab, "✦", 2, 2, 24, 24)
             end
-        else
-            local all = label(tab, "ALL", 0, 2, tabWidth, 24)
-            all.alignHorizontal = ui.AlignMode.CENTRE
-            all.alignVertical = ui.AlignMode.CENTRE
         end
     end
     local controlY = 35

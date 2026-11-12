@@ -55,9 +55,12 @@ function manageSettings.attach(queue, active, openSettings)
                 if buttonRoot ~= currentButton or not active() then return end
                 openSettings(queue)
             end)
-        end, { width = 24, height = 24, iconSize = 16,
+        end, { width = 24, height = 24, iconSize = 24,
             tooltip = { text = tipText, placement = "above", boundsMargin = 0,
                 width = tipWidth, height = tipHeight } })
+    -- Match the Hub icons despite PrettyUI's 16px inset for a 24px button.
+    button.content:SetPos(0, 0)
+    button.content:SetSize(24, 24)
     button.tooltip.label.font = id.Font.MUSEO_SANS_11PT_REGULAR
     button.tooltip.label.alignVertical = ui.AlignMode.CENTRE
 end

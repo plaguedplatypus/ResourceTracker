@@ -20,7 +20,7 @@ Only supported gains are counted. The tracker starts recording new gains while t
 
 Open Resource Tracker from the Plugin Hub ribbon and gather a supported resource. It appears as a row with its name, icon, and count. If the game does not provide an item icon, the tracker shows the related skill icon.
 
-Use the icon tabs to view a skill or resource, or choose **ALL** to see resources across all visible skills. The arrows reveal tabs that do not fit in the panel.
+Use the icon tabs to view a skill or resource, or choose the **bag tab** to see resources across all visible skills. The arrows reveal tabs that do not fit in the panel.
 
 Sort rows by **Recent**, **A-Z**, or **Count**. Some skills also offer additional item and zone filters.
 

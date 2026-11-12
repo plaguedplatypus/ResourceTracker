@@ -15,7 +15,7 @@ local groupsBySkill = {}
 
 -- These entries drive the tracker tabs and the order in which players see them.
 local categories = {
-    { id = "all", label = "All" },
+    { id = "all", label = "All Items" },
     { id = "mining", label = "Mining" },
     { id = "woodcutting", label = "Woodcutting" },
     { id = "fishing", label = "Fishing" },
@@ -24,7 +24,7 @@ local categories = {
     { id = "invention", label = "Invention" },
     { id = "divination", label = "Divination" },
     { id = "hunter", label = "Hunter" },
-    { id = "seren", label = "Spirits" }
+    { id = "seren", label = "Seren Spirits" }
 }
 
 -- Dig sites follow their first Archaeology level instead of their names.
