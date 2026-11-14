@@ -5,7 +5,7 @@ local persistence = require("Core/persistence")
 local trackerState = {}
 -- This module is the single owner of saved tracker state. UI and event modules
 -- call its functions instead of changing counts or settings directly.
-local data = { items = {}, order = 0, settings = {}, session = { days = {} } }
+local data = { items = {}, ports = {}, order = 0, settings = {}, session = { days = {} } }
 local accountId
 local ready = false
 local trackedId
@@ -15,6 +15,7 @@ local waitingSettings = {}
 -- replaced the whole record, so panels must also clear their selection.
 local revision = 0
 local generation = 0
+local portsObserved = false
 -- The client does not expose Lua's standard clock. Logic events run at 50 Hz,
 -- providing the elapsed time used for sessions and items-per-hour calculations.
 local elapsed = 0
@@ -83,6 +84,7 @@ function trackerState.open(id, name)
     end
     data, accountId, trackedId, linkedName, ready = loaded, account, idText,
         linked and name or nil, true
+    portsObserved = false
     -- A gain recorded before the first chat timestamp uses the temporary
     -- Today key. If the timestamp arrived before this record opened, move the
     -- temporary data into the dated entry now.
@@ -109,7 +111,8 @@ function trackerState.unload()
         sessionStats.close(data.session)
         persistence.save(data, accountId)
     end
-    data = { items = {}, order = 0, settings = {}, session = { days = {} } }
+    data = { items = {}, ports = {}, order = 0, settings = {}, session = { days = {} } }
+    portsObserved = false
     accountId, ready, trackedId, linkedName, waitingSettings = nil, false, nil, nil, {}
     elapsed, epochOffset = 0, nil
     generation = generation + 1
@@ -133,6 +136,7 @@ function trackerState.restoreProfile(account, target)
     sessionStats.close(loaded.session)
     if not persistence.save(loaded, accountId) then return false end
     data = loaded
+    portsObserved = false
     generation = generation + 1
     revision = revision + 1
     return true
@@ -142,7 +146,8 @@ end
 -- save its old in-memory state back into the database.
 function trackerState.clearAllData()
     if not persistence.clearAll() then return false end
-    data = { items = {}, order = 0, settings = {}, session = { days = {} } }
+    data = { items = {}, ports = {}, order = 0, settings = {}, session = { days = {} } }
+    portsObserved = false
     accountId, ready, trackedId, linkedName, waitingSettings = nil, false, nil, nil, {}
     elapsed, epochOffset = 0, nil
     generation = generation + 1
@@ -166,6 +171,18 @@ local function ensure(definition, source)
         data.items[itemKey] = item
     end
     return item
+end
+
+-- Ship rewards have fixed Ports rows, including before the first inventory gain.
+function trackerState.ensureShipReward(name)
+    if not ready then return end
+    local definition = catalog.find(name, "ports")
+    local itemKey = catalog.makeKey("ports", definition.name)
+    if not data.items[itemKey] then
+        ensure(definition)
+        save()
+    end
+    return data.items[itemKey]
 end
 
 -- Automatic gains advance both persistent counts and session history.
@@ -228,9 +245,28 @@ function trackerState.remove(itemKey)
     save()
 end
 
--- Clear one skill's tracker rows; recorded session and daily gains stay intact.
+-- Clear one skill's tracker rows. Ports keeps game-owned stock and resets its
+-- resource and ship-reward gains while leaving other saved item fields intact.
+-- Session and daily history stay intact in either case.
 function trackerState.clearSkill(skill)
     if not ready then return end
+    if skill == "ports" then
+        local changed = false
+        for _, item in pairs(data.ports) do
+            if item.gained ~= 0 then
+                item.gained = 0
+                changed = true
+            end
+        end
+        for _, item in pairs(data.items) do
+            if item.skill == "ports" and item.count ~= 0 then
+                item.count = 0
+                changed = true
+            end
+        end
+        if changed then save() end
+        return
+    end
     local changed = false
     for itemKey, item in pairs(data.items) do
         if item.skill == skill then
@@ -244,6 +280,60 @@ end
 -- The dock reads this shared table when it draws catalogued resource rows.
 function trackerState.getItems()
     return data.items
+end
+
+-- Ports displays its current stock separately from gathered item counts.
+-- A complete panel read updates all stocks together; only later increases
+-- during this login count as gains. Spending and the daily Chimes drop to
+-- 200,000 never subtract from gains. Hard-capped stock can hide rewards that
+-- produce no visible increase (999,999 resources; 250 trade goods).
+function trackerState.observePorts(amounts)
+    if not ready then return false end
+    local changed = false
+    for name, amount in pairs(amounts) do
+        local item = data.ports[name]
+        if not item then
+            item = { owned = amount, gained = 0 }
+            data.ports[name] = item
+            changed = true
+        elseif item.owned ~= amount then
+            if portsObserved and item.owned and amount > item.owned then
+                item.gained = item.gained + amount - item.owned
+            end
+            item.owned = amount
+            changed = true
+        end
+    end
+    portsObserved = true
+    if changed then save() end
+    return changed
+end
+
+function trackerState.getPorts()
+    return data.ports
+end
+
+-- A stock goal tracks observed gains, not the game's owned stock. It may be
+-- chosen before the first valid stock reading arrives from the client.
+function trackerState.setPortGoal(name, goal)
+    if not ready then return end
+    local item = data.ports[name]
+    if not item then
+        if not goal then return end
+        data.ports[name] = { gained = 0, goal = goal }
+        save()
+    elseif item.goal ~= goal then
+        item.goal = goal
+        save()
+    end
+end
+
+function trackerState.resetPort(name)
+    local item = data.ports[name]
+    if item and item.gained ~= 0 then
+        item.gained = 0
+        save()
+    end
 end
 
 -- The dock and settings window read the same saved preferences.

@@ -5,6 +5,7 @@ local trackerState = require("ui/trackerState")
 local panel = require("ui/trackerPanel")
 local settingsPanel = require("ui/settingsPanel")
 local session = require("ui/session")
+local ports = require("ui/ports")
 
 -- A granted ID can arrive after login. Wait for it so a renamed character
 -- cannot start a second save under the new name before its ID arrives.
@@ -61,6 +62,7 @@ Event.GameStateChanged.Subscribe("resourceTrackerGameStateChanged", function(eve
     else
         trackerState.unload()
     end
+    ports.poll()
     panel.refresh()
     settingsPanel.refresh()
     session.refresh()
@@ -76,6 +78,7 @@ Event.Logic.Subscribe("resourceTrackerUiLogic", function()
     local changed = panel.flushActions()
     uiTicks = uiTicks + 1
     if not trackerState.isReady() and uiTicks % 20 == 0 then openData() end
+    if uiTicks % 20 == 0 then ports.poll() end
     if changed or uiTicks % 20 == 0 then
         panel.refresh()
         settingsPanel.refresh()

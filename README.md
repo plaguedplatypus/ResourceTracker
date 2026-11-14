@@ -12,9 +12,9 @@ Resource Tracker records supported resources as you gather them, so you can see 
 
 ## What it tracks
 
-The plugin detects supported gains from your inventory and relevant game messages. It covers Mining, Woodcutting, Fishing, Archaeology, Farming, Divination, Hunter, and Invention resources, along with supported porter deliveries, Invention components, and Seren spirit gifts.
+The plugin detects supported gains from your inventory and relevant game messages. It covers Mining, Woodcutting, Fishing, Archaeology, Farming, Divination, Hunter, and Invention resources, along with supported porter deliveries, Invention components, Seren spirit gifts, Player Owned Ports.
 
-Only supported gains are counted. The tracker starts recording new gains while the plugin is active; it does not import resources you gathered earlier.
+Only supported gains are counted on the ordinary resource tabs. They start recording new gains while the plugin is active; they do not import resources you gathered earlier. Ports stock is read as described below.
 
 ## Using the tracker
 
@@ -32,6 +32,20 @@ Select a row to open its controls, and select it again to close them:
 - Select the **Circular Arrow** twice to reset the count, or the **Bin** twice to remove the row.
 
 Manual count corrections change the tracker row without adding to session or daily gathering totals.
+
+Invention material rows also show **Owned** beneath their controls. This is the current amount in your Materials pouch. The number in the row remains the amount tracked as gained by Resource Tracker.
+
+## Player Owned Ports
+
+-Choose the **anchor tab** for Player Owned Ports. Use its group picker to show **All groups**, **Ports Resources**, **Trade Goods**, or **Ship Rewards**. 
+
+-The tab reads your Ports stock directly, you do not need to open the Ports Resources panel. Each stock row shows the gains observed by Resource Tracker; select it to view the current **Owned** amount. 
+
+-The owned amount shows **(MAX)** when it reaches that resource's cap. 200k for Chimes and 999k for the other resources. Trade Goods **(MAX)** at 250. Spending a resource updates the owned amount without reducing the amount tracked as gained by Resource Tracker.
+
+-All Ports rows have a **Goal** field, **Star** to set the goal, **Eraser** to clear it, and **Circular Arrow** to reset that row's tracked gains with a second click to confirm. Goal progress uses tracked gains, not Owned stock.
+
+-Use **Reset gains** beside Player Owned Ports in Settings to clear all observed Ports gains while keeping the latest stock amounts and saved goals.
 
 <img src="https://image.modcdn.io/members/20c3/63901461/profile/2026-11-0802_38_03-runescape.png" alt="Resource Tracker panel" width="358" height="414">
 
@@ -61,7 +75,7 @@ Under **Saved Profiles**, choose another character's local save, then select **U
 
 Select **Delete all data** and **Confirm delete** to erase Resource Tracker's saved data and characters on the device. Other plugins' data is unaffected.
 
-Counts, goals, settings, and daily history are saved locally for each player account.
+Counts, goals, Ports stock and observed gains, settings, and daily history are saved locally for each player account.
 
 <img src="https://image.modcdn.io/members/20c3/63901461/profile/rt-settings.png" alt="Resource Tracker settings" width="450" height="270">
 
@@ -93,9 +107,9 @@ With tracking access, Resource Tracker links your character name and ID to the s
 
 ## Data Protection (Case 1)
 
-Resource Tracker uses game information made available through the RuneScape API, including resource-related chat messages, inventory item IDs and quantities, and user-entered resource tracking information.
+Resource Tracker uses game information made available through the RuneScape API, including resource-related chat messages, inventory item IDs and quantities, Invention material balances, Player Owned Ports resource amounts sent to the client, and user-entered resource tracking information.
 
-Tracked resource counts, collection goals, plugin preferences, and the character name-to-ID link are stored locally using the plugin persistence system.
+Tracked resource counts, Ports stock and observed gains, collection goals, plugin preferences, and the character name-to-ID link are stored locally using the plugin persistence system.
 
 This information is used solely to provide resource tracking and related functionality within the game.
 

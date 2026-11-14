@@ -4,6 +4,8 @@ local session = require("ui/session")
 local settingsPanel = require("ui/settingsPanel")
 local ribbonToggle = require("ui/ribbonToggle")
 local manageSettings = require("ui/manageSettings")
+local ports = require("ui/ports")
+local itemEditor = require("ui/itemEditor")
 
 local panel = {}
 -- The dock panel owns presentation and click handling. 
@@ -20,7 +22,8 @@ local icons = {
     farming = id.Sprite.STATICONS_HIGH_RES2_CLEAN_2,
     invention = id.Sprite.SKILL_ICON_INVENTION_52PX_0,
     divination = id.Sprite.STATICONS_HIGH_RES2_CLEAN_14,
-    hunter = id.Sprite.STATICONS_HIGH_RES2_CLEAN_5
+    hunter = id.Sprite.STATICONS_HIGH_RES2_CLEAN_5,
+    ports = id.Sprite.AIF_POP_ANCHOR_ICON_0
 }
 local colour = {
     normal = Vector4.new(0.96, 0.88, 0.72, 1),
@@ -34,17 +37,15 @@ local colour = {
 }
 local parent, root, list, selected
 local tabOffset, shownCategory = 0, nil
-local draft, armed = "", nil
 local pending = {}
 local tabTips = {}
-local editControls = {}
-local editTooltipContexts = {}
 local tooltipLayer
 local nameAnchor, nameTip
 local groupMenu, menuCover
 local iconIds = {}
 local shownRevision, shownSettings, shownWidth, shownHeight = -1, "", 0, 0
 local shownGeneration = -1
+local shownOwned
 
 -- The Plugin Hub reuses and clears its content layer when switching plugins.
 -- A saved parent reference can remain readable after our children are gone.
@@ -114,6 +115,26 @@ local function formatCount(value)
     return string.format("%.0f", value)
 end
 
+local function formatOwned(value)
+    if value == nil then return "-" end
+    local digits = formatCount(value)
+    return digits:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+end
+
+-- Invention materials are stored as VarPlayers rather than in a container.
+-- Third-age components retain their older Ancient config name in the game.
+local function readMaterialOwned(name)
+    local normalized = catalog.normalize(name)
+    local varName = normalized == "third-age components"
+        and "INVENT_MATERIAL_ANCIENT_COMPONENTS"
+        or "INVENT_MATERIAL_" .. normalized:upper():gsub("[^A-Z0-9]+", "_")
+    local config = var.VarPlayer[varName]
+    local amount = config and config.value
+    if type(amount) == "number" and amount >= 0 and amount % 1 == 0 then
+        return amount
+    end
+end
+
 -- Confirm the config object name before using its ID for a chat-only reward.
 local function configId(configName, name)
     -- The config may not define every item name seen in chat.
@@ -148,24 +169,6 @@ local function iconId(item)
     return iconIds[name] or nil
 end
 
--- Item controls accept only whole, non-negative game quantities.
-local function amountFrom(field, allowZero)
-    local amount = tonumber(field:GetText())
-    if amount and amount % 1 == 0 and amount >= (allowZero and 0 or 1) then
-        return amount
-    end
-end
-
--- Editor controls and tooltip contexts belong to a specific rendered row.
-local function clearEditor()
-    for _, editor in ipairs(editTooltipContexts) do
-        prettyui.Tooltip.unregisterContext(editor)
-    end
-    editTooltipContexts = {}
-    for _, control in ipairs(editControls) do control:Destroy() end
-    editControls = {}
-end
-
 -- Keep the full name above its clipped label as the list scrolls.
 local function placeNameTip(row, nameX, nameWidth)
     if not nameTip or not hasUi() then return end
@@ -180,6 +183,29 @@ local function placeNameTip(row, nameX, nameWidth)
         tooltipLayer.width - nameTip.width))
     nameAnchor:SetPos(tipX, tipY + 3)
     nameTip:Show()
+end
+
+-- The skill and Ports lists use the same hover treatment for clipped names.
+local function attachNameTip(row, name, nameX, nameWidth)
+    if utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, name) <= nameWidth then
+        return
+    end
+    row:Subscribe(ui.Hook.ONMOUSEOVER, function()
+        if nameTip then
+            nameTip.options.width, nameTip.options.height = tipSize(name)
+            nameTip:SetText(name)
+            placeNameTip(row, nameX, nameWidth)
+        end
+        return true
+    end)
+    row:Subscribe(ui.Hook.ONMOUSEREPEAT, function()
+        placeNameTip(row, nameX, nameWidth)
+        return true
+    end)
+    row:Subscribe(ui.Hook.ONMOUSELEAVE, function()
+        if nameTip then nameTip:Hide() end
+        return true
+    end)
 end
 
 -- Highlight special reward sources without changing their displayed names.
@@ -200,6 +226,9 @@ end
 -- Turn catalog group IDs into readable picker labels.
 local function groupLabel(group)
     if group == "all" then return "All groups" end
+    if group == "resources" then return "Ports Resources" end
+    if group == "trade" then return "Trade Goods" end
+    if group == "ships" then return "Ship Rewards" end
     return (group:gsub("(%l)(%u)", "%1 %2"):gsub("^%l", string.upper))
 end
 
@@ -232,7 +261,8 @@ local function itemsFor(settings)
     local category, group = selection(settings)
     for itemKey, item in pairs(state.getItems()) do
         local definition = catalog.find(item.name, item.skill)
-        if not hidden[item.skill] and (category == "all" or item.skill == category)
+        if item.skill ~= "ports" and not hidden[item.skill]
+            and (category == "all" or item.skill == category)
             and (group == "all" or (definition and definition.groups[group]))
             and (settings.showArtefacts ~= false or not (definition and definition.artefact)) then
             items[#items + 1] = {
@@ -275,149 +305,15 @@ end
 local drawRows
 
 -- Reserve the same vertical space for every expanded resource editor.
-local editorHeight = 47
+local editorHeight = itemEditor.height
 
--- The editor is rendered inside the selected row rather than opening a separate window,
--- so it remains close to the resource being changed.
-local function drawEditor(owner, itemKey, item, y, width)
-    local height = editorHeight
-    local editor = ui.Layer.new(owner)
-    editor:SetPos(2, y)
-    editor:SetSize(width, height)
-    local background = ui.Rectangle.new(editor)
-    background:SetSize(width, height)
-    background.fill = true
-    background.colour = Vector4.new(0.10, 0.085, 0.06, 0.7)
-    background.clickthrough = true
-
-    -- List children are clipped by the dock. Put editor tooltips above it.
-    -- xyGlobal does not include a scroll view's current offset,
-    -- so calculate from the list viewport and subtract its scroll position.
-    local tooltipParent = tooltipLayer
-    local contextRoot, contextList = root, list
-    local tips = {}
-    -- Convert editor-local positions to overlay coordinates after scrolling.
-    prettyui.Tooltip.registerContext(editor, tooltipParent, function(target)
-        -- PrettyUI can finish a drag callback after the Hub replaces our panel.
-        if root ~= contextRoot or list ~= contextList then return 0, 0 end
-        local ok, x, y = pcall(function()
-            local listPos = contextList.root.xyGlobal
-            local parentPos = tooltipParent.xyGlobal
-            return listPos.x + (editor.x or 0) + (target.x or 0) - parentPos.x,
-                listPos.y + (editor.y or 0) + (target.y or 0) - contextList.scrollY - parentPos.y
-        end)
-        if ok then
-            local tip = tips[target]
-            if tip then
-                x = x + (target.width - tip.width) / 2
-                x = math.max(0, math.min(x, tooltipParent.width - tip.width))
-                y = y + 3
-            end
-            return x, y
-        end
-        return 0, 0
-    end)
-    editTooltipContexts[#editTooltipContexts + 1] = editor
-
-    -- Place editor control tips through the registered game-area context.
-    local function attachTip(button, text)
-        tips[button] = compactTip(button, editor, text)
-    end
-
-    local innerWidth = width - 8
-    local field = prettyui.TextField.new(editor, {
-        x = 4, y = 3, width = innerWidth, height = 21,
-        text = draft, placeholder = "Count or goal",
-        filterMode = ui.InputFieldFilterMode.NUMBERS_AS_TEXT, maxLength = 12,
-        -- Keep unfinished input local until a count or goal action is chosen.
-        onChange = function(_, _, value) draft = value end
-    })
-    editControls[#editControls + 1] = field
-
-    -- Create a PrettyUI action icon and attach its editor tooltip.
-    local function addIcon(sprite, tip, action, x, disabled, size)
-        size = size or 16
-        local button = prettyui.SpriteButton.new(editor, sprite, action, {
-            x = x, y = 35 - size / 2, size = size, disabled = disabled
-        })
-        editControls[#editControls + 1] = button
-        attachTip(button.root, tip)
-        return button
-    end
-
-    -- Validate the entered amount before queueing a saved-state change.
-    local function change(method, allowZero)
-        local amount = amountFrom(field, allowZero)
-        if not amount then return end
-        -- Apply the validated edit after PrettyUI has finished its callback.
-        panel.queue(function()
-            state[method](itemKey, amount)
-            draft, armed = "", nil
-        end)
-    end
-
-    -- Manual count corrections do not add to the gathering session.
-    addIcon("PENCIL", "Set count from the entered number", function()
-        change("setCount", true)
-    end, 4)
-    -- A goal is display-only and leaves the gathered count intact.
-    addIcon("STAR", "Set goal from the entered number", function()
-        change("setGoal", false)
-    end, 24)
-    -- Clear the goal without removing the tracked resource.
-    addIcon("ERASER", "Clear goal", function()
-        -- Defer the saved goal edit until Logic.
-        panel.queue(function() state.setGoal(itemKey, nil); armed = nil end)
-    end, 44, item.goal == nil)
-
-    -- Pins stay above normal rows in every sort mode and survive reloads.
-    local pinButton = ui.Sprite.new(editor)
-    pinButton:SetPos(64, 27)
-    pinButton:SetSize(16, 16)
-    pinButton.spriteID = id.Sprite.ACHIEVEMENT_ICON_PIN_14PX_0
-    pinButton:Subscribe(ui.Hook.ONCLICK, function()
-        panel.queue(function() state.setPinned(itemKey, not item.pinned) end)
-        return true
-    end)
-    editControls[#editControls + 1] = pinButton
-    attachTip(pinButton, item.pinned and "Unpin resource" or "Pin resource to top")
-
-    -- Reset and remove arm on the first click and apply on the second.
-    -- Selecting another row clears the armed action.
-    -- Use 20px slots so the refresh and bin symbols remain legible.
-    local reset = addIcon("REFRESH", "Reset count (click twice)", function()
-        if armed == "reset" then
-            -- The confirmed reset changes only this resource's current count.
-            panel.queue(function()
-                state.setCount(itemKey, 0)
-                selected, draft, armed = nil, "", nil
-            end)
-        else
-            -- First click arms the reset and redraws its highlighted control.
-            panel.queue(function()
-                armed = "reset"
-                drawRows(state.getSettings(), true)
-            end)
-        end
-    end, width - 42, false, 20)
-    if armed == "reset" then reset.root.colour = Vector4.new(1, 0.18, 0.12, 1) end
-    -- Removing a row requires the same two-click confirmation as reset.
-    local remove = addIcon("TRASH", "Remove resource (click twice)", function()
-        if armed == "remove" then
-            -- The confirmed action removes the row from saved tracker state.
-            panel.queue(function()
-                state.remove(itemKey)
-                selected, draft, armed = nil, "", nil
-            end)
-        else
-            -- First click arms removal without changing saved data.
-            panel.queue(function()
-                armed = "remove"
-                drawRows(state.getSettings(), true)
-            end)
-        end
-    end, width - 22, false, 20)
-    if armed == "remove" then remove.root.colour = Vector4.new(1, 0.18, 0.12, 1) end
+local function outlineEdge(owner, x, y, width, height)
+    local edge = ui.Rectangle.new(owner)
+    edge:SetPos(x, y)
+    edge:SetSize(width, height)
+    edge.fill = true
+    edge.colour = colour.selectedOutline
+    edge.clickthrough = true
 end
 
 -- Keep PrettyUI's scroll view alive. Recreating it during a server update
@@ -427,8 +323,25 @@ drawRows = function(settings, revealSelected)
     if not hasUi() then
         return false
     end
-    clearEditor()
+    itemEditor.clear()
     if nameTip then nameTip:Hide() end
+    shownOwned = nil
+    local current, activeGroup = selection(settings)
+    local editContext = {
+        root = root, list = list, tooltipLayer = tooltipLayer,
+        tip = compactTip, queue = panel.queue,
+        redraw = function() drawRows(state.getSettings(), true) end,
+        isCurrent = function(expectedRoot, expectedList)
+            return root == expectedRoot and list == expectedList
+        end
+    }
+    if current == "ports" then
+        selected = nil
+        ports.draw(list, activeGroup, settings, attachNameTip, editContext,
+            revealSelected)
+        return true
+    end
+    ports.clearSelection()
     local scroll = list.scrollY
     local height = list.root.height
     list.content:DeleteAll()
@@ -444,7 +357,10 @@ drawRows = function(settings, revealSelected)
         end
         contentHeight = contentHeight +
             ((settings.showGoals ~= false and entry.item.goal) and 39 or 23)
-        if selected == entry.itemKey then contentHeight = contentHeight + editorHeight end
+        if selected == entry.itemKey then
+            contentHeight = contentHeight + editorHeight
+                + (entry.item.skill == "invention" and itemEditor.ownedHeight or 0)
+        end
     end
     list:SetContentHeight(contentHeight)
     local rowWidth, rowY = list.contentWidth - 4, 2
@@ -548,25 +464,7 @@ drawRows = function(settings, revealSelected)
             pin.spriteID = id.Sprite.ACHIEVEMENT_ICON_PIN_14PX_0
             pin.clickthrough = true
         end
-        if utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, name) > nameWidth then
-            -- Only names clipped by the row need the full-name tooltip.
-            row:Subscribe(ui.Hook.ONMOUSEOVER, function()
-                if nameTip then
-                    nameTip.options.width, nameTip.options.height = tipSize(name)
-                    nameTip:SetText(name)
-                    placeNameTip(row, nameX, nameWidth)
-                end
-                return true
-            end)
-            row:Subscribe(ui.Hook.ONMOUSEREPEAT, function()
-                placeNameTip(row, nameX, nameWidth)
-                return true
-            end)
-            row:Subscribe(ui.Hook.ONMOUSELEAVE, function()
-                if nameTip then nameTip:Hide() end
-                return true
-            end)
-        end
+        attachNameTip(row, name, nameX, nameWidth)
         label(row, countText, rowWidth - countWidth - 3, 1,
             countWidth, 21, colour.count, true)
         if hasGoal then
@@ -576,7 +474,7 @@ drawRows = function(settings, revealSelected)
                 iconWidth + 3, 20, rowWidth - iconWidth - 8, 14, colour.goal)
         end
         -- Select or collapse the resource's inline count and goal editor.
-        row:Subscribe(ui.Hook.ONCLICK, function()
+        local function toggle()
             -- Redraw the rows after the selection state changes.
             panel.queue(function()
                 if selected == itemKey then
@@ -584,23 +482,43 @@ drawRows = function(settings, revealSelected)
                 else
                     selected = itemKey
                 end
-                draft, armed = "", nil
+                itemEditor.reset()
                 if list then drawRows(state.getSettings(), true) end
             end)
             return true
-        end)
+        end
+        row:Subscribe(ui.Hook.ONCLICK, toggle)
         if selected == itemKey then
-            drawEditor(list.content, itemKey, item, rowY + rowHeight, rowWidth)
+            local editor = itemEditor.draw(list.content, rowY + rowHeight,
+                rowWidth, editContext, {
+                    goal = item.goal, pinned = item.pinned,
+                    setCount = function(amount) state.setCount(itemKey, amount) end,
+                    setGoal = function(goal) state.setGoal(itemKey, goal) end,
+                    pin = function() state.setPinned(itemKey, not item.pinned) end,
+                    reset = function() state.setCount(itemKey, 0) end,
+                    remove = function() state.remove(itemKey) end,
+                    close = function() selected = nil end
+                })
+            -- Each edge draws over its own fill; the raised row would cover
+            -- the top of an outline attached to the scroll content.
+            outlineEdge(row, 0, 0, rowWidth, 1)
+            outlineEdge(row, 0, 0, 1, rowHeight)
+            outlineEdge(row, rowWidth - 1, 0, 1, rowHeight)
+            outlineEdge(editor, 0, 0, 1, editorHeight)
+            outlineEdge(editor, rowWidth - 1, 0, 1, editorHeight)
             rowHeight = rowHeight + editorHeight
-            -- The editor is a sibling beneath the row, so draw its selection
-            -- outline last around both regions to keep the active item clear.
-            local outline = ui.Rectangle.new(list.content)
-            outline:SetPos(2, rowY)
-            outline:SetSize(rowWidth, rowHeight)
-            outline.fill = false
-            outline.outlineThickness = 1
-            outline.colour = colour.selectedOutline
-            outline.clickthrough = true
+            if item.skill == "invention" then
+                shownOwned = readMaterialOwned(item.name)
+                local detail = itemEditor.drawOwned(list.content,
+                    rowY + rowHeight, rowWidth,
+                    "Owned: " .. formatOwned(shownOwned), toggle)
+                outlineEdge(detail, 0, 0, 1, itemEditor.ownedHeight)
+                outlineEdge(detail, rowWidth - 1, 0, 1, itemEditor.ownedHeight)
+                outlineEdge(detail, 0, itemEditor.ownedHeight - 1, rowWidth, 1)
+                rowHeight = rowHeight + itemEditor.ownedHeight
+            else
+                outlineEdge(editor, 0, editorHeight - 1, rowWidth, 1)
+            end
             selectedBottom = rowY + rowHeight
         end
         rowY = rowY + rowHeight
@@ -624,8 +542,10 @@ local function forgetUi()
         tooltipLayer:Destroy()
     end
     tooltipLayer = nil
-    selected, draft, armed = nil, "", nil
-    tabTips, editControls, editTooltipContexts = {}, {}, {}
+    selected = nil
+    shownOwned = nil
+    itemEditor.forget()
+    tabTips = {}
     groupMenu, menuCover = nil, nil
     list, root = nil, nil
 end
@@ -643,7 +563,7 @@ local function destroyUi()
         return
     end
     closeGroupMenu()
-    clearEditor()
+    itemEditor.clear()
     for _, tip in ipairs(tabTips) do tip:Destroy() end
     tabTips = {}
     ribbonToggle.detach()
@@ -903,6 +823,10 @@ local function build()
             else
                 label(tab, "✦", 2, 2, 24, 24)
             end
+        elseif skill == "ports" then
+            local icon = label(tab, "P", 2, 2, 24, 24)
+            icon.alignHorizontal = ui.AlignMode.CENTRE
+            icon.alignVertical = ui.AlignMode.CENTRE
         end
     end
     local controlY = 35
@@ -910,22 +834,24 @@ local function build()
     local sort = settings.sort or "recent"
     ribbonToggle.attach(parent, panel.queue, hasUi, build)
     manageSettings.attach(panel.queue, hasUi, settingsPanel.open)
-    -- Cycle the order used by the visible resource rows.
-    prettyui.SimpleButton.new(root, sortLabels[sort], function()
-        -- Persist the next sort mode before the panel rebuilds.
-        panel.queue(function()
-            for index, name in ipairs(sorts) do
-                if name == sort then
-                    state.setSetting("sort", sorts[index % #sorts + 1])
-                    break
+    if current ~= "ports" then
+        -- Ports follows the game's fixed resource order, so it has no sort button.
+        prettyui.SimpleButton.new(root, sortLabels[sort], function()
+            panel.queue(function()
+                for index, name in ipairs(sorts) do
+                    if name == sort then
+                        state.setSetting("sort", sorts[index % #sorts + 1])
+                        break
+                    end
                 end
-            end
-        end)
-    end, { x = 4, y = controlY, width = sortWidth, height = 22 })
+            end)
+        end, { x = 4, y = controlY, width = sortWidth, height = 22 })
+    end
     local groups = catalog.getGroups(current)
     if #groups > 1 then
         local group = activeGroup
-        local groupX, groupWidth = sortWidth + 8, width - sortWidth - 12
+        local groupX = current == "ports" and 4 or sortWidth + 8
+        local groupWidth = width - groupX - 4
         local panelRoot = root
         prettyui.SimpleButton.new(root, groupLabel(group),
             -- Open the site's menu below this unchanged button appearance.
@@ -968,7 +894,8 @@ end
 function panel.refresh()
     -- A tab can be cleared while this panel is closed; discard its old editor selection.
     if selected and not state.getItems()[selected] then
-        selected, draft, armed = nil, "", nil
+        selected = nil
+        itemEditor.reset()
     end
     if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then
         forgetUi()
@@ -990,7 +917,14 @@ function panel.refresh()
         return
     end
     local revision = state.getRevision()
-    if revision == shownRevision then return end
+    if revision == shownRevision then
+        local item = selected and state.getItems()[selected]
+        if item and item.skill == "invention"
+            and readMaterialOwned(item.name) ~= shownOwned then
+            drawRows(state.getSettings())
+        end
+        return
+    end
     local settings = state.getSettings()
     if signature(settings) ~= shownSettings then
         build()

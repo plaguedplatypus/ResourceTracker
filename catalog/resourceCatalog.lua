@@ -24,7 +24,8 @@ local categories = {
     { id = "invention", label = "Invention" },
     { id = "divination", label = "Divination" },
     { id = "hunter", label = "Hunter" },
-    { id = "seren", label = "Seren Spirits" }
+    { id = "seren", label = "Seren Spirits" },
+    { id = "ports", label = "Player Owned Ports" },
 }
 
 -- Dig sites follow their first Archaeology level instead of their names.
@@ -120,6 +121,11 @@ for name, itemId in pairs(serenSpirit) do
     add(name, "seren", {}, itemId)
 end
 
+-- These ship rewards arrive as objects rather than Ports stock variables.
+-- Their POP3 item IDs identify backpack gains even when item names differ.
+add("Gemstone kaseki", "ports", { "Ship Rewards" }, 33885)
+add("Tengu tsuba", "ports", { "Ship Rewards" }, 33878)
+
 -- Inventory deltas use object IDs, which avoid ambiguous display names.
 function catalog.findById(itemId)
     return byId[itemId]
@@ -182,6 +188,7 @@ end
 
 -- Divination has no subgroup picker; other skills start with All groups.
 function catalog.getGroups(skill)
+    if skill == "ports" then return { "all", "resources", "trade", "ships" } end
     if skill == "divination" then return { "all" } end
     local result = { "all" }
     for group in pairs(groupsBySkill[skill] or {}) do

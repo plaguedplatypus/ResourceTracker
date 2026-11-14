@@ -106,8 +106,10 @@ local function build()
     for index, choice in ipairs(choices) do
         local skill = choice.value
         prettyui.SimpleButton.new(view.content,
-            armedSkill == skill and "Confirm" or "Clear", function()
-                -- First click arms this skill; the second removes only its rows.
+            armedSkill == skill and "Confirm"
+                or (skill == "ports" and "Reset gains" or "Clear"), function()
+                -- Ports stock comes from the game, so its action resets only
+                -- observed gains; other skills remove their tracked rows.
                 queue(function()
                     if armedSkill == skill then
                         state.clearSkill(skill)

@@ -97,7 +97,7 @@ end
 -- validation so an invalid record cannot prevent the tracker from loading.
 function persistence.load(accountId)
     local saved = PersistentDB:GetStructuredData(storageKey(accountId))
-    local data = { items = {}, order = 0, settings = {}, session = { days = {} } }
+    local data = { items = {}, ports = {}, order = 0, settings = {}, session = { days = {} } }
     if type(saved) ~= "table" then
         return data
     end
@@ -145,6 +145,22 @@ function persistence.load(accountId)
                     goal = nonNegativeInteger(item.goal) and item.goal > 0 and item.goal or nil,
                     pinned = item.pinned == true or nil,
                     order = nonNegativeInteger(item.order) and item.order or 0
+                }
+            end
+        end
+    end
+    if type(saved.ports) == "table" then
+        -- Ports stock is read from game variables; saved values are the last
+        -- complete observation and the positive changes seen by this plugin.
+        for name, item in pairs(saved.ports) do
+            if type(name) == "string" and type(item) == "table"
+                and (item.owned == nil or nonNegativeInteger(item.owned))
+                and nonNegativeInteger(item.gained) then
+                data.ports[name] = {
+                    owned = item.owned,
+                    gained = item.gained,
+                    goal = nonNegativeInteger(item.goal) and item.goal > 0
+                        and item.goal or nil
                 }
             end
         end
