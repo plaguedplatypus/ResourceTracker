@@ -128,6 +128,9 @@ local function build()
     prettyui.CheckboxButton.new(view.content, {
         { text = "Show item icons", value = "showIcons", selected = settings.showIcons ~= false },
         { text = "Show goals", value = "showGoals", selected = settings.showGoals ~= false },
+        -- RuneScape text tags tint only the sign, matching the resource rows.
+        { text = "Show <col=66D97A>+</col> on gains", value = "showGainPlus",
+            selected = settings.showGainPlus ~= false },
         { text = "Show Artefacts", value = "showArtefacts",
             selected = settings.showArtefacts ~= false }
     }, {

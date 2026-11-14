@@ -295,7 +295,8 @@ end
 local function signature(settings)
     local parts = { settings.category or "all", settings.group or "all",
         settings.sort or "recent", tostring(settings.showIcons ~= false),
-        tostring(settings.showGoals ~= false), tostring(settings.showArtefacts ~= false) }
+        tostring(settings.showGoals ~= false), tostring(settings.showArtefacts ~= false),
+        tostring(settings.showGainPlus ~= false) }
     for _, category in ipairs(categories) do
         parts[#parts + 1] = tostring((settings.hiddenSkills or {})[category.id] == true)
     end
@@ -449,9 +450,13 @@ drawRows = function(settings, revealSelected)
                 end
             end
         end
+        local showGain = settings.showGainPlus ~= false and count > 0
         local countText = formatCount(count)
+        local numberWidth = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, countText)
+        local plusWidth = showGain
+            and utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "+") + 2 or 0
         local countWidth = math.max(49,
-            utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, countText) + 2)
+            numberWidth + plusWidth + 2)
         local name = capitalize(item.name)
         local pinWidth = item.pinned and 16 or 0
         local nameWidth = math.max(1, rowWidth - iconWidth - countWidth - pinWidth - 8)
@@ -467,6 +472,10 @@ drawRows = function(settings, revealSelected)
         attachNameTip(row, name, nameX, nameWidth)
         label(row, countText, rowWidth - countWidth - 3, 1,
             countWidth, 21, colour.count, true)
+        if showGain then
+            label(row, "+", rowWidth - numberWidth - plusWidth - 3, 1,
+                plusWidth, 21, colour.goal, true)
+        end
         if hasGoal then
             local percent = math.min(100, count / item.goal * 100)
             label(row, string.format("%s / %s (%.0f%%)", formatCount(count),

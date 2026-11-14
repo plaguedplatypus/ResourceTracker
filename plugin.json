@@ -1,6 +1,6 @@
 {
   "name": "Resource Tracker",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "contactEmailAddress": "direplatypus@outlook.com",
   "hasRibbonIcon": true,
   "requiredPermissions": ["chatAccess"],

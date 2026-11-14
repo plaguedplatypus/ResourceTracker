@@ -210,17 +210,24 @@ function ports.draw(view, group, settings, attachNameTip, editContext, revealSel
                 end
                 icon.clickthrough = true
             end
-            local gained = item and formatCount(shipReward and item.count or item.gained)
-                or (shipReward and "0" or "-")
+            local count = item and (shipReward and item.count or item.gained)
+            local gained = count and formatCount(count) or (shipReward and "0" or "-")
+            local showGain = settings.showGainPlus ~= false and count and count > 0
+            local numberWidth = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, gained)
+            local plusWidth = showGain
+                and utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "+") + 2 or 0
             local countWidth = math.max(49,
-                utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, gained) + 2)
+                numberWidth + plusWidth + 2)
             local nameWidth = math.max(1, width - nameX - countWidth - 8)
             text(row, name, nameX, 1, nameWidth, 21)
             attachNameTip(row, name, nameX, nameWidth)
             text(row, gained, width - countWidth - 3, 1,
                 countWidth, 21, countColour, true)
+            if showGain then
+                text(row, "+", width - numberWidth - plusWidth - 3, 1,
+                    plusWidth, 21, goalColour, true)
+            end
             if hasGoal then
-                local count = shipReward and item.count or item.gained
                 local percent = math.min(100, count / item.goal * 100)
                 text(row, string.format("%s / %s (%.0f%%)", gained,
                     formatCount(item.goal), percent), nameX, 20,

@@ -67,7 +67,7 @@ Select the **settings button** at the right of Resource Tracker's bottom bar to 
 
 <img src="https://image.modcdn.io/members/20c3/63901461/profile/2026-11-0802_43_50-runescape.png" alt="Settings button" width="182" height="119">
 
-There you can choose which skill tabs appear and whether to show item icons, goals, and Archaeology artefacts. Hiding artefacts leaves their counts saved.
+There you can choose which skill tabs appear and whether to show item icons, goals, green `+` signs on positive gains, and Archaeology artefacts. The `+` sign is on by default; the count itself stays white. Hiding artefacts leaves their counts saved.
 
 To remove every tracker row for one skill, select **Clear** beside that skill and then **Confirm**. This leaves session totals and daily history intact.
 
