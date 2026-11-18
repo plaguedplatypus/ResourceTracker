@@ -1,4 +1,5 @@
 local persistence = {}
+persistence.overlayRows = { min = 4, max = 10, default = 7 }
 -- Keep one local record per character, reachable by ID or linked name.
 local storageName = "resourceTrackerV1"
 
@@ -115,6 +116,18 @@ function persistence.load(accountId)
         data.settings.showGoals = settings.showGoals ~= false
         data.settings.showGainPlus = settings.showGainPlus ~= false
         data.settings.showArtefacts = settings.showArtefacts ~= false
+        data.settings.showOverlay = settings.showOverlay == true
+        data.settings.showOverlayBackdrop = settings.showOverlayBackdrop == true
+        local rows = settings.overlayRows
+        if nonNegativeInteger(rows)
+            and rows >= persistence.overlayRows.min and rows <= persistence.overlayRows.max then
+            data.settings.overlayRows = rows
+        end
+        local position = settings.overlayPosition
+        if type(position) == "table" and nonNegativeInteger(position.x)
+            and nonNegativeInteger(position.y) then
+            data.settings.overlayPosition = { x = position.x, y = position.y }
+        end
         if type(settings.hiddenSkills) == "table" then
             data.settings.hiddenSkills = {}
             for skill, hidden in pairs(settings.hiddenSkills) do

@@ -6,6 +6,7 @@ local panel = require("ui/trackerPanel")
 local settingsPanel = require("ui/settingsPanel")
 local session = require("ui/session")
 local ports = require("ui/ports")
+local overlay = require("ui/recentOverlay")
 
 -- A granted ID can arrive after login. Wait for it so a renamed character
 -- cannot start a second save under the new name before its ID arrives.
@@ -34,6 +35,7 @@ function PluginShutdown()
     panel.destroy()
     settingsPanel.destroy()
     session.destroy()
+    overlay.destroy()
     decisions.discardPending()
     trackerState.unload()
 end
@@ -52,6 +54,7 @@ Event.ServerLogic.Subscribe("resourceTrackerServerLogic", function()
     panel.refresh()
     settingsPanel.refresh()
     session.refresh()
+    overlay.refresh()
 end)
 -- A world transition resets snapshots and opens the account for the new game.
 Event.GameStateChanged.Subscribe("resourceTrackerGameStateChanged", function(event)
@@ -66,6 +69,7 @@ Event.GameStateChanged.Subscribe("resourceTrackerGameStateChanged", function(eve
     panel.refresh()
     settingsPanel.refresh()
     session.refresh()
+    overlay.refresh()
 end)
 Event.ContentLayerReady.Subscribe("resourceTrackerContentLayerReady", panel.onReady)
 
@@ -83,10 +87,13 @@ Event.Logic.Subscribe("resourceTrackerUiLogic", function()
         panel.refresh()
         settingsPanel.refresh()
         session.refresh()
+        overlay.refresh()
     end
+    overlay.updateInput()
 end)
 
 -- Enabling while already in game may not emit InventoryAdded for visible containers.
 inventoryTracker.seedContainers()
 openData()
+overlay.refresh()
 log("Resource Tracker enabled.")

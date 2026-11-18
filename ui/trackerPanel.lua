@@ -6,6 +6,7 @@ local ribbonToggle = require("ui/ribbonToggle")
 local manageSettings = require("ui/manageSettings")
 local ports = require("ui/ports")
 local itemEditor = require("ui/itemEditor")
+local resourceRow = require("ui/resourceRow")
 
 local panel = {}
 -- The dock panel owns presentation and click handling. 
@@ -13,28 +14,10 @@ local panel = {}
 local categories = catalog.getCategories()
 local sorts = { "recent", "name", "count" }
 local sortLabels = { recent = "Recent", name = "A-Z", count = "Count" }
-local icons = {
-    all = id.Sprite.RS3_ICON_SEND_TO_BACKPACK,
-    mining = id.Sprite.STATICONS_HIGH_RES_CLEAN_12,
-    woodcutting = id.Sprite.STATICONS_HIGH_RES_CLEAN_17,
-    fishing = id.Sprite.STATICONS_HIGH_RES_CLEAN_14,
-    archaeology = id.Sprite.SKILL_ICON_ARCHAEOLOGY_52PX_0,
-    farming = id.Sprite.STATICONS_HIGH_RES2_CLEAN_2,
-    invention = id.Sprite.SKILL_ICON_INVENTION_52PX_0,
-    divination = id.Sprite.STATICONS_HIGH_RES2_CLEAN_14,
-    hunter = id.Sprite.STATICONS_HIGH_RES2_CLEAN_5,
-    ports = id.Sprite.AIF_POP_ANCHOR_ICON_0
-}
-local colour = {
-    normal = Vector4.new(0.96, 0.88, 0.72, 1),
-    count = Vector4.new(1, 1, 1, 1),
-    goal = Vector4.new(0.40, 0.85, 0.48, 1),
-    selectedOutline = Vector4.new(0.82, 0.61, 0.25, 0.95),
-    rare = Vector4.new(0.88, 0.42, 0.38, 1),
-    uncommon = Vector4.new(0.90, 0.63, 0.23, 1),
-    ancient = Vector4.new(0.34, 0.78, 0.77, 1),
-    seren = Vector4.new(0.47, 0.90, 0.97, 1)
-}
+local icons = resourceRow.skillIcons
+local label, formatCount = resourceRow.label, resourceRow.formatCount
+local selectedOutline = Vector4.new(0.82, 0.61, 0.25, 0.95)
+local rowOptions = { showPin = true }
 local parent, root, list, selected
 local tabOffset, shownCategory = 0, nil
 local pending = {}
@@ -42,7 +25,6 @@ local tabTips = {}
 local tooltipLayer
 local nameAnchor, nameTip
 local groupMenu, menuCover
-local iconIds = {}
 local shownRevision, shownSettings, shownWidth, shownHeight = -1, "", 0, 0
 local shownGeneration = -1
 local shownOwned
@@ -71,20 +53,6 @@ function panel.flushActions()
     return true
 end
 
--- Use the same font and alignment for tracker labels.
-local function label(owner, value, x, y, width, height, tint, right)
-    local component = ui.Text.new(owner)
-    component:SetPos(x, y)
-    component:SetSize(width, height)
-    component.content = value
-    component.font = id.Font.MUSEO_SANS_15PT_REGULAR
-    component.colour = tint or colour.normal
-    component.maxLines = 1
-    if right then component.alignHorizontal = ui.AlignMode.BOTTOMRIGHT end
-    component.clickthrough = true
-    return component
-end
-
 -- Share the game's compact hover styling across tabs, names, and row controls.
 local function tipSize(text)
     local font = config.Font.MUSEO_SANS_11PT_REGULAR
@@ -105,16 +73,6 @@ local function compactTip(target, parent, text)
     return tip
 end
 
--- Keep item names readable after catalog normalization.
-local function capitalize(name)
-    return name:gsub("^%l", string.upper)
-end
-
--- RuneScape item counts are whole numbers even when stored as Lua numbers.
-local function formatCount(value)
-    return string.format("%.0f", value)
-end
-
 local function formatOwned(value)
     if value == nil then return "-" end
     local digits = formatCount(value)
@@ -133,40 +91,6 @@ local function readMaterialOwned(name)
     if type(amount) == "number" and amount >= 0 and amount % 1 == 0 then
         return amount
     end
-end
-
--- Confirm the config object name before using its ID for a chat-only reward.
-local function configId(configName, name)
-    -- The config may not define every item name seen in chat.
-    local ok, obj = pcall(function() return config.Obj[configName] end)
-    if ok and obj and catalog.normalize(obj.name) == name then return obj.id end
-end
-
--- Backpack gains provide an object ID. 
--- Chat rewards use a catalogued ID or a cached exact-name config lookup.
-local function iconId(item)
-    if item.itemId then return item.itemId end
-    local definition = catalog.find(item.name, item.skill)
-    if definition and definition.itemId then return definition.itemId end
-    local name = catalog.normalize(item.name)
-    if iconIds[name] == nil then
-        local configName = item.name:upper():gsub("[^A-Z0-9]+", "_")
-        local found = configId(configName, name)
-        if not found then
-            -- Salvage configs put the type first and the size last. 
-            -- Their IDs are scattered, so use the config name rather than an ID range.
-            local size, shape, metal = name:match("^(%a+) (%a+) (%a+) salvage$")
-            if size then
-                configName = shape:upper() .. "_SALVAGE_" .. metal:upper()
-                    .. "_" .. size:upper()
-                found = configId(configName, name)
-            end
-        end
-        -- Config names often match item names, but only an exact display-name
-        -- match is safe for a chat reward that supplies no object ID.
-        iconIds[name] = found or false
-    end
-    return iconIds[name] or nil
 end
 
 -- Keep the full name above its clipped label as the list scrolls.
@@ -208,21 +132,6 @@ local function attachNameTip(row, name, nameX, nameWidth)
     end)
 end
 
--- Highlight special reward sources without changing their displayed names.
-local function nameColour(item)
-    if item.skill == "seren" then
-        return colour.seren
-    end
-    if item.skill == "invention" then
-        local definition = catalog.find(item.name, item.skill)
-        local groups = definition and definition.groups or {}
-        if groups.ancient then return colour.ancient end
-        if groups.rare then return colour.rare end
-        if groups.uncommon then return colour.uncommon end
-    end
-    return colour.normal
-end
-
 -- Turn catalog group IDs into readable picker labels.
 local function groupLabel(group)
     if group == "all" then return "All groups" end
@@ -261,10 +170,9 @@ local function itemsFor(settings)
     local category, group = selection(settings)
     for itemKey, item in pairs(state.getItems()) do
         local definition = catalog.find(item.name, item.skill)
-        if item.skill ~= "ports" and not hidden[item.skill]
+        if resourceRow.isVisible(item, definition, hidden, settings.showArtefacts)
             and (category == "all" or item.skill == category)
-            and (group == "all" or (definition and definition.groups[group]))
-            and (settings.showArtefacts ~= false or not (definition and definition.artefact)) then
+            and (group == "all" or (definition and definition.groups[group])) then
             items[#items + 1] = {
                 itemKey = itemKey,
                 item = item,
@@ -313,7 +221,7 @@ local function outlineEdge(owner, x, y, width, height)
     edge:SetPos(x, y)
     edge:SetSize(width, height)
     edge.fill = true
-    edge.colour = colour.selectedOutline
+    edge.colour = selectedOutline
     edge.clickthrough = true
 end
 
@@ -402,85 +310,20 @@ drawRows = function(settings, revealSelected)
         local row = ui.Layer.new(list.content, 200 + (index - 1) % 32)
         row:SetPos(2, rowY)
         row:SetSize(rowWidth, rowHeight)
-        local background = ui.Rectangle.new(row)
-        background:SetSize(rowWidth, rowHeight)
-        background.fill = true
-        background.colour = selected == itemKey and Vector4.new(0.10, 0.085, 0.06, 0.7)
-            or (index % 2 == 0 and Vector4.new(0, 0, 0, 0.2)
-                or Vector4.new(0, 0, 0, 0.4))
-        background.clickthrough = true
-        local iconWidth = settings.showIcons == false and 2 or 20
-        if settings.showIcons ~= false then
-            local definition = item.skill == "invention" and catalog.find(item.name, item.skill)
-            local spriteId = definition and definition.spriteId
-            local objectId
-            if not spriteId then objectId = iconId(item) end
-            if spriteId or objectId then
-                local icon = ui.Sprite.new(row)
-                icon:SetPos(2, 2)
-                icon:SetSize(18, 18)
-                if spriteId then
-                    icon.spriteID = spriteId
-                else
-                    icon:SetAssociatedObject(objectId)
-                    icon.associatedObjectQuantityMode = ui.ObjectQuantityDisplayMode.NEVER
-                end
-                icon.clickthrough = true
-            else
-                -- Some chat rewards have neither an object ID nor a material sprite.
-                local skillIcon = icons[item.skill]
-                local serenImage
-                if item.skill == "seren" and Plugin.resources then
-                    serenImage = Plugin.resources.seren or Plugin.resources["seren.png"]
-                end
-                if skillIcon or serenImage then
-                    local icon = ui.Sprite.new(row)
-                    if skillIcon then
-                        icon:SetPos(3, 3)
-                        icon:SetSize(16, 16)
-                        icon.spriteID = skillIcon
-                    else
-                        icon:SetPos(4, 2)
-                        icon:SetSize(14, 18)
-                        icon.sprite = serenImage
-                    end
-                    icon.clickthrough = true
-                else
-                    label(row, "•", 3, 0, 16, 20)
-                end
-            end
+        if selected == itemKey then
+            local background = ui.Rectangle.new(row)
+            background:SetSize(rowWidth, rowHeight)
+            background.fill = true
+            background.colour = Vector4.new(0.10, 0.085, 0.06, 0.7)
+            background.clickthrough = true
         end
-        local showGain = settings.showGainPlus ~= false and count > 0
-        local countText = formatCount(count)
-        local numberWidth = utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, countText)
-        local plusWidth = showGain
-            and utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "+") + 2 or 0
-        local countWidth = math.max(49,
-            numberWidth + plusWidth + 2)
-        local name = capitalize(item.name)
-        local pinWidth = item.pinned and 16 or 0
-        local nameWidth = math.max(1, rowWidth - iconWidth - countWidth - pinWidth - 8)
-        local nameX = iconWidth + 3
-        label(row, name, nameX, 1, nameWidth, 21, nameColour(item))
-        if item.pinned then
-            local pin = ui.Sprite.new(row)
-            pin:SetPos(rowWidth - countWidth - 19, 4)
-            pin:SetSize(14, 14)
-            pin.spriteID = id.Sprite.ACHIEVEMENT_ICON_PIN_14PX_0
-            pin.clickthrough = true
-        end
+        local name, nameX, nameWidth = resourceRow.draw(row, item, settings, rowWidth, rowOptions)
         attachNameTip(row, name, nameX, nameWidth)
-        label(row, countText, rowWidth - countWidth - 3, 1,
-            countWidth, 21, colour.count, true)
-        if showGain then
-            label(row, "+", rowWidth - numberWidth - plusWidth - 3, 1,
-                plusWidth, 21, colour.goal, true)
-        end
         if hasGoal then
             local percent = math.min(100, count / item.goal * 100)
             label(row, string.format("%s / %s (%.0f%%)", formatCount(count),
                 formatCount(item.goal), percent),
-                iconWidth + 3, 20, rowWidth - iconWidth - 8, 14, colour.goal)
+                nameX, 20, rowWidth - nameX - 5, 14, resourceRow.goalColour)
         end
         -- Select or collapse the resource's inline count and goal editor.
         local function toggle()

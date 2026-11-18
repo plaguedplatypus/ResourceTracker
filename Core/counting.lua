@@ -5,6 +5,7 @@ local decisions = {}
 local inventoryChanges = {}
 local chatResults = {}
 local waitingPackets = {}
+local presetPackets = 0
 
 -- Buffer inventory deltas until chat from the same game packet can be reconciled.
 function decisions.observeInventory(change)
@@ -16,11 +17,17 @@ function decisions.observeChat(result)
     chatResults[#chatResults + 1] = result
 end
 
+-- Cover the notice packet and the next two while the preset reaches the backpack.
+function decisions.observePreset()
+    presetPackets = 3
+end
+
 -- World changes invalidate observations and any delayed packet reconciliation.
 function decisions.discardPending()
     inventoryChanges = {}
     chatResults = {}
     waitingPackets = {}
+    presetPackets = 0
 end
 
 -- Claim only the available amount so overlapping sources cannot double count.
@@ -34,7 +41,7 @@ end
 -- Chat-owned rewards count from their message.
 -- direct chat only identifies nearby backpack gains. 
 -- Match withdrawals and conversions before counting.
-local function countPacket(inventory, chat)
+local function countPacket(inventory, chat, preset)
     local withdrawals = {}
     local backpackConversions = {}
     local chatClaims = {}
@@ -91,7 +98,10 @@ local function countPacket(inventory, chat)
     end
 
     for _, change in ipairs(inventory) do
-        if change.backpack and change.delta > 0 and not change.noted then
+        -- A preset withdrawal is a transfer, even when the bank inventory
+        -- does not send a matching loss for this packet.
+        if change.backpack and change.delta > 0
+            and not change.noted and not preset then
             local remaining = change.delta
             local normalized = catalog.normalize(change.name)
             -- Noting and unnoting replace a inventory item ID with another ID using the same display name. 
@@ -193,27 +203,41 @@ local function countPacket(inventory, chat)
     trackerState.recordAuto(updates)
 end
 
--- Delay one packet to allow chat and inventory events from the same gain to meet.
+-- Finish each server packet after matching its chat and inventory events.
 function decisions.finishPacket()
+    local preset = presetPackets > 0
+    if preset then presetPackets = presetPackets - 1 end
     if #inventoryChanges == 0 and #chatResults == 0 and #waitingPackets == 0 then
         return
     end
     local inventory, chat = inventoryChanges, chatResults
     inventoryChanges, chatResults = {}, {}
+    if preset then
+        -- The first backpack increase is the preset load; later gathering
+        -- should count normally even within the short notice window.
+        for _, change in ipairs(inventory) do
+            if change.backpack and change.delta > 0 then
+                presetPackets = 0
+                break
+            end
+        end
+    end
     if not trackerState.isReady() then
         -- GetTrackingID can arrive late after login. Keep each server packet
         -- separate so withdrawals and chat claims still pair correctly.
         if #inventory > 0 or #chat > 0 then
-            waitingPackets[#waitingPackets + 1] = { inventory = inventory, chat = chat }
+            waitingPackets[#waitingPackets + 1] = {
+                inventory = inventory, chat = chat, preset = preset
+            }
         end
         return
     end
     for _, packet in ipairs(waitingPackets) do
-        countPacket(packet.inventory, packet.chat)
+        countPacket(packet.inventory, packet.chat, packet.preset)
     end
     waitingPackets = {}
     if #inventory > 0 or #chat > 0 then
-        countPacket(inventory, chat)
+        countPacket(inventory, chat, preset)
     end
 end
 

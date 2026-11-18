@@ -185,13 +185,13 @@ function ports.draw(view, group, settings, attachNameTip, editContext, revealSel
             local row = ui.Layer.new(view.content, 200 + (index - 1) % 32)
             row:SetPos(2, y)
             row:SetSize(width, baseHeight)
-            local background = ui.Rectangle.new(row)
-            background:SetSize(width, baseHeight)
-            background.fill = true
-            background.colour = expanded and Vector4.new(0.10, 0.085, 0.06, 0.7)
-                or (index % 2 == 0 and Vector4.new(0, 0, 0, 0.2)
-                    or Vector4.new(0, 0, 0, 0.4))
-            background.clickthrough = true
+            if expanded then
+                local background = ui.Rectangle.new(row)
+                background:SetSize(width, baseHeight)
+                background.fill = true
+                background.colour = Vector4.new(0.10, 0.085, 0.06, 0.7)
+                background.clickthrough = true
+            end
             local objectId = shipReward and (item and item.itemId
                 or catalog.find(name, "ports").itemId)
             local spriteId = showIcons and (sprites[name]

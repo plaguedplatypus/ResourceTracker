@@ -18,6 +18,12 @@ function chatTracker.onMessage(event)
         or event.chatType == ChatType.PLUGIN
     local result
     if not hasSender and not playerType then
+        -- Presets can replace backpack contents without a visible bank loss.
+        -- Their chat notice identifies the transfer before it can look like a gain.
+        if event.chatMessage:lower():find("your preset is being withdrawn", 1, true) then
+            decisions.observePreset()
+            return
+        end
         result = parser.parse(event.chatMessage)
     end
     if result then

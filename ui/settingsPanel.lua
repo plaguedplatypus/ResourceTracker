@@ -35,6 +35,7 @@ local function note(owner, content, x, y, width)
     value.alignVertical = ui.AlignMode.CENTRE
     value.maxLines = 1
     value.clickthrough = true
+    return value
 end
 
 -- Lay out visible skill tabs and display settings in the available panel size.
@@ -125,15 +126,20 @@ local function build()
     end
 
     title(view.content, "DISPLAY", rightX, 4, columnWidth)
-    prettyui.CheckboxButton.new(view.content, {
+    local displayChoices = {
         { text = "Show item icons", value = "showIcons", selected = settings.showIcons ~= false },
         { text = "Show goals", value = "showGoals", selected = settings.showGoals ~= false },
         -- RuneScape text tags tint only the sign, matching the resource rows.
         { text = "Show <col=66D97A>+</col> on gains", value = "showGainPlus",
             selected = settings.showGainPlus ~= false },
         { text = "Show Artefacts", value = "showArtefacts",
-            selected = settings.showArtefacts ~= false }
-    }, {
+            selected = settings.showArtefacts ~= false },
+        { text = "Show recent items overlay", value = "showOverlay",
+            selected = settings.showOverlay == true },
+        { text = "Show overlay backdrop", value = "showOverlayBackdrop",
+            selected = settings.showOverlayBackdrop == true }
+    }
+    prettyui.CheckboxButton.new(view.content, displayChoices, {
         x = rightX, y = controlsY, width = columnWidth,
         -- PrettyUI callbacks queue persistent setting edits for Logic.
         onChange = function(_, _, name, selected)
@@ -143,7 +149,26 @@ local function build()
             end)
         end
     })
-    view:SetContentHeight(math.max(view.root.height, controlsY + #choices * 22 + 4))
+    local rowsY = controlsY + #displayChoices * 22 + 4
+    local rowLimits = persistence.overlayRows
+    local rows = settings.overlayRows or rowLimits.default
+    local function adjustRows(step)
+        queue(function()
+            local current = state.getSettings().overlayRows or rowLimits.default
+            local nextRows = math.max(rowLimits.min, math.min(rowLimits.max, current + step))
+            state.setSetting("overlayRows", nextRows)
+            armedSkill, armedRestore, armedAll, needsBuild = nil, false, false, true
+        end)
+    end
+    note(view.content, "Overlay rows", rightX, rowsY + 1, 96)
+    prettyui.SimpleButton.new(view.content, "-", function() adjustRows(-1) end,
+        { x = rightX + 97, y = rowsY, width = 28, height = 20, disabled = rows == rowLimits.min })
+    local rowCount = note(view.content, tostring(rows), rightX + 127, rowsY + 1, 26)
+    rowCount.alignHorizontal = ui.AlignMode.CENTRE
+    prettyui.SimpleButton.new(view.content, "+", function() adjustRows(1) end,
+        { x = rightX + 155, y = rowsY, width = 28, height = 20, disabled = rows == rowLimits.max })
+    note(view.content, "Shift+drag to move.", rightX, rowsY + 24, columnWidth)
+    view:SetContentHeight(math.max(view.root.height, controlsY + #choices * 22 + 4, rowsY + 46))
 
     local separator = ui.Rectangle.new(root)
     separator:SetPos(8, bottomY - 5)
