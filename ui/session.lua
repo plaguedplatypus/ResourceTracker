@@ -277,6 +277,7 @@ function session.open(actionQueue)
         if not gameArea then return end
         -- These are starting dimensions only. PrettyUI handles dragging the
         -- title bar and resizing every edge; the report uses the live viewport.
+        -- PrettyUI 1.3.0 can pick an occupied sprite ID on the shared game area in auto mode.
         window = prettyui.Window.new(gameArea, {
             title = "Resource Tracker session",
             x = -215, y = -185, xAnchor = 0.5, yAnchor = 0.5,

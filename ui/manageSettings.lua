@@ -1,3 +1,5 @@
+local compactTooltip = require("ui/compactTooltip")
+
 local manageSettings = {}
 local buttonRoot, tipLayer
 
@@ -24,26 +26,22 @@ function manageSettings.attach(queue, active, openSettings)
     local footer = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2_PLUGIN_CONTENT__BUTTON_LAYER)
     if not footer then return end
 
-    -- Separate categories avoid the shared game layer's category 0 ID limit.
-    buttonRoot = ui.Layer.new(footer, 185)
+    buttonRoot = ui.Layer.new(footer)
     buttonRoot:SetPos(-28, 0, 1, 0)
     buttonRoot:SetSize(24, 24)
     local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
         or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or buttonRoot
-    tipLayer = ui.Layer.new(top, 186)
+    tipLayer = ui.Layer.new(top)
     tipLayer:SetSize(0, 0, 1, 1)
     tipLayer.clickthrough = true
 
     local currentButton, tipParent = buttonRoot, tipLayer
-    local tipText = "Open Settings"
-    local font = config.Font.MUSEO_SANS_11PT_REGULAR
-    local tipWidth = font:GetStringWidth(tipText, false) + 16
-    local tipHeight = font:GetStringHeightAndLineCount(tipText, tipWidth - 16,
-        font.baseline, false, false, false) + 10
+    local tip
     -- Centre the tip over the button, shifting it at the screen edge.
     prettyui.Tooltip.registerContext(buttonRoot, tipLayer, function(target)
         if buttonRoot ~= currentButton then return 0, 0 end
         local targetPos, tipPos = target.xyGlobal, tipParent.xyGlobal
+        local tipWidth = tip.width
         local x = targetPos.x - tipPos.x + (target.width - tipWidth) / 2
         return math.max(0, math.min(x, tipParent.width - tipWidth)),
             targetPos.y - tipPos.y + 3
@@ -55,14 +53,11 @@ function manageSettings.attach(queue, active, openSettings)
                 if buttonRoot ~= currentButton or not active() then return end
                 openSettings(queue)
             end)
-        end, { width = 24, height = 24, iconSize = 24,
-            tooltip = { text = tipText, placement = "above", boundsMargin = 0,
-                width = tipWidth, height = tipHeight } })
+        end, { categoryID = "auto", width = 24, height = 24, iconSize = 24 })
     -- Match the Hub icons despite PrettyUI's 16px inset for a 24px button.
     button.content:SetPos(0, 0)
     button.content:SetSize(24, 24)
-    button.tooltip.label.font = id.Font.MUSEO_SANS_11PT_REGULAR
-    button.tooltip.label.alignVertical = ui.AlignMode.CENTRE
+    tip = compactTooltip.attach(button.root, buttonRoot, "Open Settings")
 end
 
 return manageSettings

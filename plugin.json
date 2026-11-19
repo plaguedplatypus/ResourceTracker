@@ -1,6 +1,6 @@
 {
   "name": "Resource Tracker",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "contactEmailAddress": "RSPluginPlatypus@gmail.com",
   "hasRibbonIcon": true,
   "requiredPermissions": ["chatAccess"],

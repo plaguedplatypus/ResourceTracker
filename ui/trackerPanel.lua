@@ -7,6 +7,7 @@ local manageSettings = require("ui/manageSettings")
 local ports = require("ui/ports")
 local itemEditor = require("ui/itemEditor")
 local resourceRow = require("ui/resourceRow")
+local compactTooltip = require("ui/compactTooltip")
 
 local panel = {}
 -- The dock panel owns presentation and click handling. 
@@ -53,26 +54,6 @@ function panel.flushActions()
     return true
 end
 
--- Share the game's compact hover styling across tabs, names, and row controls.
-local function tipSize(text)
-    local font = config.Font.MUSEO_SANS_11PT_REGULAR
-    local width = math.max(21, math.min(240, font:GetStringWidth(text, false) + 16))
-    local height = font:GetStringHeightAndLineCount(text, width - 16,
-        font.baseline, false, false, false) + 10
-    return width, height
-end
-
-local function compactTip(target, parent, text)
-    local width, height = 21, 21
-    if text ~= "" then width, height = tipSize(text) end
-    local tip = prettyui.Tooltip.attach(target, parent,
-        { text = text, placement = "above", boundsMargin = 0,
-            width = width, height = height })
-    tip.label.font = id.Font.MUSEO_SANS_11PT_REGULAR
-    tip.label.alignVertical = ui.AlignMode.CENTRE
-    return tip
-end
-
 local function formatOwned(value)
     if value == nil then return "-" end
     local digits = formatCount(value)
@@ -94,7 +75,7 @@ local function readMaterialOwned(name)
 end
 
 -- Keep the full name above its clipped label as the list scrolls.
-local function placeNameTip(row, nameX, nameWidth)
+local function positionNameTip(row, nameX, nameWidth)
     if not nameTip or not hasUi() then return end
     local ok, tipX, tipY = pcall(function()
         local viewPos = list.root.xyGlobal
@@ -106,7 +87,7 @@ local function placeNameTip(row, nameX, nameWidth)
     tipX = math.max(0, math.min(tipX - nameTip.width / 2,
         tooltipLayer.width - nameTip.width))
     nameAnchor:SetPos(tipX, tipY + 3)
-    nameTip:Show()
+    return true
 end
 
 -- The skill and Ports lists use the same hover treatment for clipped names.
@@ -116,14 +97,14 @@ local function attachNameTip(row, name, nameX, nameWidth)
     end
     row:Subscribe(ui.Hook.ONMOUSEOVER, function()
         if nameTip then
-            nameTip.options.width, nameTip.options.height = tipSize(name)
+            nameTip.options.width, nameTip.options.height = compactTooltip.measure(name)
             nameTip:SetText(name)
-            placeNameTip(row, nameX, nameWidth)
+            if positionNameTip(row, nameX, nameWidth) then compactTooltip.show(nameTip) end
         end
         return true
     end)
     row:Subscribe(ui.Hook.ONMOUSEREPEAT, function()
-        placeNameTip(row, nameX, nameWidth)
+        if positionNameTip(row, nameX, nameWidth) then nameTip:Show() end
         return true
     end)
     row:Subscribe(ui.Hook.ONMOUSELEAVE, function()
@@ -238,7 +219,7 @@ drawRows = function(settings, revealSelected)
     local current, activeGroup = selection(settings)
     local editContext = {
         root = root, list = list, tooltipLayer = tooltipLayer,
-        tip = compactTip, queue = panel.queue,
+        queue = panel.queue,
         redraw = function() drawRows(state.getSettings(), true) end,
         isCurrent = function(expectedRoot, expectedList)
             return root == expectedRoot and list == expectedList
@@ -457,6 +438,7 @@ local function openGroupMenu(groups, current, activeGroup, x, y, width)
         return false
     end)
     groupMenu = prettyui.List.new(menuCover, {
+        categoryID = "auto",
         x = math.min(x, panelWidth - menuWidth - 4), y = y,
         width = menuWidth, height = menuHeight, entryHeight = 22,
         entries = entries,
@@ -481,8 +463,8 @@ local function build()
     if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then return end
     destroyUi()
     local width, height = parent.width, parent.height
-    -- Dock children inherit this category so they do not exhaust category 0.
-    root = ui.Layer.new(parent, 181)
+    -- PrettyUI's scroll views and popup list need a category-zero mount.
+    root = ui.Layer.new(parent)
     root:SetSize(width, height)
     -- Brother Where Art Thou uses this top layer for tips outside its dock.
     -- Map each tab's position into that layer so PrettyUI can choose whichever
@@ -490,8 +472,7 @@ local function build()
     local tooltipParent = ui.Interfaces:GetComponent(
         id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
         or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
-    -- PrettyUI's scroll drag layer also uses this parent. Give it a free category.
-    tooltipLayer = ui.Layer.new(tooltipParent, 182)
+    tooltipLayer = ui.Layer.new(tooltipParent)
     tooltipLayer:SetSize(0, 0, 1, 1)
     tooltipLayer.clickthrough = true
     tooltipParent = tooltipLayer
@@ -610,7 +591,7 @@ local function build()
         panel.queue(function() session.open(panel.queue) end)
         return true
     end)
-    tabTips[#tabTips + 1] = compactTip(sessionTab, root, "Session and Daily History")
+    tabTips[#tabTips + 1] = compactTooltip.attach(sessionTab, root, "Session and Daily History")
     local sessionIcon = ui.Sprite.new(sessionTab)
     sessionIcon:SetPos(2, 2)
     sessionIcon:SetSize(24, 24)
@@ -656,7 +637,7 @@ local function build()
             end)
             return true
         end)
-        tabTips[#tabTips + 1] = compactTip(tab, root, entry.label)
+        tabTips[#tabTips + 1] = compactTooltip.attach(tab, root, entry.label)
         if icons[skill] then
             local icon = ui.Sprite.new(tab)
             icon:SetPos(1, 1)
@@ -697,7 +678,7 @@ local function build()
                     end
                 end
             end)
-        end, { x = 4, y = controlY, width = sortWidth, height = 22 })
+        end, { categoryID = "auto", x = 4, y = controlY, width = sortWidth, height = 22 })
     end
     local groups = catalog.getGroups(current)
     if #groups > 1 then
@@ -717,17 +698,17 @@ local function build()
                             controlY + 22, groupWidth)
                     end
                 end)
-            end, { x = groupX, y = controlY, height = 22,
+            end, { categoryID = "auto", x = groupX, y = controlY, height = 22,
                 width = groupWidth })
     end
     local listY = controlY + 25
-    list = prettyui.SimpleView.new(root, { x = 2, y = listY,
+    list = prettyui.SimpleView.new(root, { categoryID = "auto", x = 2, y = listY,
         width = width - 4, height = math.max(1, height - listY - 2),
         scrollStep = 24 })
     nameAnchor = ui.Layer.new(tooltipLayer)
     nameAnchor:SetSize(0, 0)
     nameAnchor.hidden = true
-    nameTip = compactTip(nameAnchor, tooltipLayer, "")
+    nameTip = compactTooltip.attach(nameAnchor, tooltipLayer, "")
     drawRows(settings)
     shownWidth, shownHeight = width, height
     shownSettings, shownRevision = signature(settings), state.getRevision()

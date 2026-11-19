@@ -2,7 +2,9 @@
 
 ## 1.6.1
 
-
+- Updated the Plugin Hub tracker to use PrettyUI 1.3.0 component allocation. PrettyUI 1.3.0 or later is required.
+- Use inherited component IDs for the Session and Settings windows to avoid sprite ID collisions when opening them.
+- Compact tooltips now build on first hover and retain their styling on repeat hovers.
 
 ## 1.6.0
 

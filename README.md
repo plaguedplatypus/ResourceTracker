@@ -84,7 +84,7 @@ Use the eye button at the left of the bottom bar to hide or show the Plugin Hub 
 
 ## Requirements
 
-Resource Tracker requires PrettyUI for its interface.
+Resource Tracker requires PrettyUI 1.3.0 or later for its interface.
 
 ## Contact and feedback
 

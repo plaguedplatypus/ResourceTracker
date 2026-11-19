@@ -1,3 +1,5 @@
+local compactTooltip = require("ui/compactTooltip")
+
 local itemEditor = { height = 47, ownedHeight = 24 }
 local draft, armed = "", nil
 local controls, tooltipContexts = {}, {}
@@ -65,7 +67,7 @@ function itemEditor.draw(owner, y, width, context, options)
     tooltipContexts[#tooltipContexts + 1] = layer
 
     local function attachTip(button, text)
-        tips[button] = context.tip(button, layer, text)
+        tips[button] = compactTooltip.attach(button, layer, text)
     end
 
     local field = prettyui.TextField.new(layer, {

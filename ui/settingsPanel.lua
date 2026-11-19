@@ -269,6 +269,7 @@ function settingsPanel.open(actionQueue)
     if not window then
         local gameArea = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
         if not gameArea then return end
+        -- PrettyUI 1.3.0 can pick an occupied sprite ID on the shared game area in auto mode.
         window = prettyui.Window.new(gameArea, {
             title = "Resource Tracker settings",
             x = -305, y = -200, xAnchor = 0.5, yAnchor = 0.5,
