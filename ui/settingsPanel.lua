@@ -7,10 +7,11 @@ local settingsPanel = {}
 -- Keep the settings form in its own window so the ribbon button can open it.
 local window, root, view, queue, profileTip
 local isOpen = false
-local armedSkill, armedRestore, armedAll, selectedAccount, needsBuild
+local armedSkill, profileAction, selectedAccount, profileError, needsBuild
 local shownGeneration = -1
 
 local titleColour = Vector4.new(0.95, 0.75, 0.38, 1)
+local confirmColour = 0xFF6254FF
 
 -- Keep settings section headings consistent with the tracker theme.
 local function title(owner, content, x, y, width)
@@ -41,26 +42,24 @@ end
 -- Lay out visible skill tabs and display settings in the available panel size.
 local function build()
     needsBuild = false
-    shownGeneration = state.getGeneration()
+    local generation = state.getGeneration()
+    if shownGeneration ~= generation then
+        profileAction, selectedAccount, profileError = nil, nil, nil
+        shownGeneration = generation
+    end
     if profileTip then profileTip:Destroy(); profileTip = nil end
     if view then view:Destroy(); view = nil end
     if root then root:Destroy() end
     local width, height = window.viewport.width, window.viewport.height
-    -- Reuse this ID after each redraw instead of consuming the shared category 0 IDs.
-    root = ui.Layer.new(window.content, 187, 0)
+    -- Inherit category zero so the nested view can use PrettyUI's allocator.
+    root = ui.Layer.new(window.content)
     root:SetSize(width, height)
-    local bottomY = height - 110
+    local bottomY = height - 85
     view = prettyui.SimpleView.new(root, {
         x = 2, y = 2, width = width - 4, height = math.max(1, bottomY - 6)
     })
 
     local settings = state.getSettings()
-    local width = view.contentWidth
-    local leftX, gap = 6, 16
-    local columnWidth = math.floor((width - leftX * 2 - gap) / 2)
-    local rightX = leftX + columnWidth + gap
-    local controlsY = 24
-
     local choices = {}
     local hidden = settings.hiddenSkills or {}
     for _, category in ipairs(catalog.getCategories()) do
@@ -70,6 +69,29 @@ local function build()
             }
         end
     end
+    local displayChoices = {
+        { text = "Show item icons", value = "showIcons", selected = settings.showIcons ~= false },
+        { text = "Show goals", value = "showGoals", selected = settings.showGoals ~= false },
+        -- RuneScape text tags tint only the sign, matching the resource rows.
+        { text = "Show <col=66D97A>+</col> on gains", value = "showGainPlus",
+            selected = settings.showGainPlus ~= false },
+        { text = "Show Artefacts", value = "showArtefacts",
+            selected = settings.showArtefacts ~= false },
+        { text = "Show recent items overlay", value = "showOverlay",
+            selected = settings.showOverlay == true },
+        { text = "Show overlay backdrop", value = "showOverlayBackdrop",
+            selected = settings.showOverlayBackdrop == true }
+    }
+    local controlsY = 24
+    local rowsY = controlsY + #displayChoices * 22 + 4
+    local opacityY = rowsY + 24
+    local hintY = opacityY + 46
+    -- Reserve the scrollbar gutter before sizing either column.
+    view:SetContentHeight(math.max(controlsY + #choices * 22 + 4, hintY + 22))
+    local leftX, gap = 6, 16
+    local columnWidth = math.floor((view.contentWidth - leftX * 2 - gap) / 2)
+    local rightX = leftX + columnWidth + gap
+
     local clearWidth = 100
     local choiceWidth = columnWidth - clearWidth - 6
     local divider = ui.Rectangle.new(view.content)
@@ -100,7 +122,7 @@ local function build()
                     state.setSetting("category", "all")
                     state.setSetting("group", "all")
                 end
-                armedSkill, armedRestore, armedAll, needsBuild = nil, false, false, true
+                armedSkill, profileAction, needsBuild = nil, nil, true
             end)
         end
     })
@@ -118,7 +140,7 @@ local function build()
                     else
                         armedSkill = skill
                     end
-                    armedRestore, armedAll = false, false
+                    profileAction = nil
                     needsBuild = true
                 end)
             end, { x = leftX + choiceWidth + 6,
@@ -126,30 +148,16 @@ local function build()
     end
 
     title(view.content, "DISPLAY", rightX, 4, columnWidth)
-    local displayChoices = {
-        { text = "Show item icons", value = "showIcons", selected = settings.showIcons ~= false },
-        { text = "Show goals", value = "showGoals", selected = settings.showGoals ~= false },
-        -- RuneScape text tags tint only the sign, matching the resource rows.
-        { text = "Show <col=66D97A>+</col> on gains", value = "showGainPlus",
-            selected = settings.showGainPlus ~= false },
-        { text = "Show Artefacts", value = "showArtefacts",
-            selected = settings.showArtefacts ~= false },
-        { text = "Show recent items overlay", value = "showOverlay",
-            selected = settings.showOverlay == true },
-        { text = "Show overlay backdrop", value = "showOverlayBackdrop",
-            selected = settings.showOverlayBackdrop == true }
-    }
     prettyui.CheckboxButton.new(view.content, displayChoices, {
         x = rightX, y = controlsY, width = columnWidth,
         -- PrettyUI callbacks queue persistent setting edits for Logic.
         onChange = function(_, _, name, selected)
             queue(function()
                 state.setSetting(name, selected)
-                armedSkill, armedRestore, armedAll, needsBuild = nil, false, false, true
+                armedSkill, profileAction, needsBuild = nil, nil, true
             end)
         end
     })
-    local rowsY = controlsY + #displayChoices * 22 + 4
     local rowLimits = persistence.overlayRows
     local rows = settings.overlayRows or rowLimits.default
     local function adjustRows(step)
@@ -157,7 +165,7 @@ local function build()
             local current = state.getSettings().overlayRows or rowLimits.default
             local nextRows = math.max(rowLimits.min, math.min(rowLimits.max, current + step))
             state.setSetting("overlayRows", nextRows)
-            armedSkill, armedRestore, armedAll, needsBuild = nil, false, false, true
+            armedSkill, profileAction, needsBuild = nil, nil, true
         end)
     end
     note(view.content, "Overlay rows", rightX, rowsY + 1, 96)
@@ -167,8 +175,32 @@ local function build()
     rowCount.alignHorizontal = ui.AlignMode.CENTRE
     prettyui.SimpleButton.new(view.content, "+", function() adjustRows(1) end,
         { x = rightX + 155, y = rowsY, width = 28, height = 20, disabled = rows == rowLimits.max })
-    note(view.content, "Shift+drag to move.", rightX, rowsY + 24, columnWidth)
-    view:SetContentHeight(math.max(view.root.height, controlsY + #choices * 22 + 4, rowsY + 46))
+
+    local opacityLimits = persistence.overlayBackdropOpacity
+    local opacity = settings.overlayBackdropOpacity or opacityLimits.default
+    note(view.content, "Backdrop opacity", rightX, opacityY, columnWidth - 42)
+    local opacityValue = note(view.content, opacity .. "%", rightX + columnWidth - 42, opacityY, 42)
+    opacityValue.alignHorizontal = ui.AlignMode.BOTTOMRIGHT
+    local pendingOpacity
+    view:AddSlider({
+        x = rightX, y = opacityY + 20, width = columnWidth,
+        min = opacityLimits.min, max = opacityLimits.max, value = opacity,
+        disabled = settings.showOverlayBackdrop ~= true,
+        onChange = function(_, value)
+            opacityValue.content = value .. "%"
+            local queued = pendingOpacity ~= nil
+            pendingOpacity = value
+            if queued then return end
+            queue(function()
+                local latest = pendingOpacity
+                pendingOpacity = nil
+                if state.getGeneration() == generation then
+                    state.setSetting("overlayBackdropOpacity", latest)
+                end
+            end)
+        end
+    })
+    note(view.content, "Shift+drag to move.", rightX, hintY, columnWidth)
 
     local separator = ui.Rectangle.new(root)
     separator:SetPos(8, bottomY - 5)
@@ -177,12 +209,13 @@ local function build()
     separator.colour = Vector4.new(0.72, 0.48, 0.18, 0.55)
     separator.clickthrough = true
 
-    -- Only data records appear here; copying one leaves the source character alone.
+    local ready = state.isReady()
+    local target = state.getAccount()
     local profiles = persistence.profiles()
-    local entries = {}
+    local entries = { { text = "Current", id = 1, account = target } }
     local selectedIndex = 1
     for _, profile in ipairs(profiles) do
-        if profile.account ~= state.getAccount() then
+        if profile.account ~= target then
             local index = #entries + 1
             -- Keep labels inside the native ComboBox without showing tracking IDs.
             entries[index] = {
@@ -192,94 +225,122 @@ local function build()
             if selectedAccount == profile.account then selectedIndex = index end
         end
     end
-    local hasProfiles = #entries > 0
-    local canRestore = hasProfiles and state.isReady()
-    if hasProfiles then
-        selectedAccount = entries[selectedIndex].account
-    else
-        entries[1] = { text = "No other saved profiles", id = 1 }
-        selectedAccount, armedRestore = nil, false
+    local account = entries[selectedIndex].account
+    local isCurrent = account == target
+    if selectedAccount ~= account and profileAction ~= "deleteAll" then
+        profileAction = nil
     end
+    selectedAccount = account
 
     title(root, "SAVED PROFILES", 8, bottomY + 2, width - 16)
     local info = ui.Sprite.new(root)
-    info:SetPos(8 + utils.CalcTextWidth(id.Font.CINZEL_13PT_BOLD,
-        "SAVED PROFILES") + 7, bottomY + 3)
+    local infoX = 15 + utils.CalcTextWidth(id.Font.CINZEL_13PT_BOLD, "SAVED PROFILES")
+    info:SetPos(infoX, bottomY + 3)
     info:SetSize(14, 14)
     info.spriteID = id.Sprite.RS3_ICON_INFO
     profileTip = prettyui.Tooltip.attach(info, root, {
-        text = "*Saved profiles* - are shared by characters on this device.<br><br>"
-            .. "This character's active save is not listed.<br><br>"
-            .. "Use this to recover saved data if your usual profile fails to load.<br><br>"
-            .. "*Use profile* - copies the selected profile's counts, goals, settings, and history over this character's save.",
+        text = "Saved Profiles - are shared by characters on this device.<br><br>"
+            .. "*Current* is this character's active save.<br><br>"
+            .. "*Copy Profile* replaces this character's save with a copy of the selected profile.<br><br>"
+            .. "*Delete Profile* permanently removes the selected save.",
         placement = "above", maxWidth = 280
     })
-    local actionWidth = 160
-    local actionX = width - actionWidth - 8
+    local actionWidth, actionGap = 120, 8
+    local deleteX = width - 8 - actionWidth
+    local copyX = deleteX - actionGap - actionWidth
+    local pickerY = bottomY + 23
     prettyui.ComboBox.new(root, {
-        x = 8, y = bottomY + 23, width = actionX - 16, height = 22,
+        x = 8, y = pickerY, width = copyX - actionGap - 8, height = 22,
         entries = entries, selectedID = selectedIndex,
-        maxVisibleEntries = 2, disabled = not canRestore,
+        maxVisibleEntries = 2, disabled = not ready or #entries == 1,
         onChange = function(_, entryId)
             selectedAccount = entries[entryId] and entries[entryId].account
-            armedRestore, armedAll, needsBuild = false, false, true
+            profileAction, profileError, needsBuild = nil, nil, true
         end
     })
-    prettyui.SimpleButton.new(root,
-        armedRestore and "Confirm replace" or "Use profile", function()
-            if not selectedAccount then return end
-            if armedRestore then
-                local account = selectedAccount
-                local target = state.getAccount()
+
+    local function addProfileAction(action, label, confirmLabel, x, apply)
+        local enabled = ready and (action == "delete" or not isCurrent)
+        local confirming = profileAction == action
+        prettyui.SimpleButton.new(root, confirming and confirmLabel or label, function()
+            if not enabled or selectedAccount ~= account then return end
+            profileError = nil
+            if confirming then
+                if profileAction ~= action then return end
+                profileAction = nil
                 queue(function()
-                    if state.restoreProfile(account, target) then selectedAccount = nil end
-                    armedRestore, needsBuild = false, true
+                    if state.getGeneration() ~= generation or selectedAccount ~= account then return end
+                    if apply(account, target) then
+                        if action == "delete" and isCurrent then decisions.discardPending() end
+                        selectedAccount = nil
+                    else
+                        profileError = "Could not " .. action .. " the selected profile."
+                    end
+                    needsBuild = true
                 end)
             else
-                armedRestore, armedAll, needsBuild = true, false, true
+                armedSkill, profileAction, needsBuild = nil, action, true
             end
-        end, { x = actionX, y = bottomY + 23, width = actionWidth,
-            height = 22, disabled = not canRestore })
-    local profileNote = not state.isReady() and "Waiting for this character's save."
-        or hasProfiles and "Replace this character's data with a copy of the selected profile."
-        or "No other saved profiles found on this device."
-    note(root, profileNote, 8, bottomY + 48, width - 16)
+        end, { x = x, y = pickerY, width = actionWidth, height = 22,
+            colour = confirming and confirmColour or nil, disabled = not enabled })
+    end
+    addProfileAction("copy", "Copy Profile", "Confirm Copy", copyX, state.restoreProfile)
+    addProfileAction("delete", "Delete Profile", "Confirm Delete", deleteX, state.deleteProfile)
 
-    note(root, "Delete all saved character profiles on this device.",
-        8, bottomY + 78, actionX - 16)
+    local allWidth = 154
+    local allX = width - 8 - allWidth
+    local allY = pickerY + 30
+    local confirmingAll = profileAction == "deleteAll"
+    local profileNote = profileError
+        or profileAction == "copy" and "Replace this character's save with a copy."
+        or profileAction == "delete" and (isCurrent and "Reset this character's save."
+            or "Permanently delete the selected save.")
+        or not ready and "Waiting for this character's save."
+    if profileNote then
+        local noteX = infoX + 24
+        note(root, profileNote, noteX, bottomY + 2, width - noteX - 8)
+    end
+
+    note(root, "Delete every saved profile on this device.", 8, allY + 2, allX - actionGap - 8)
     prettyui.SimpleButton.new(root,
-        armedAll and "Confirm delete" or "Delete all data", function()
-            if armedAll then
+        confirmingAll and "Confirm Delete All" or "Delete All Data", function()
+            if confirmingAll then
+                if profileAction ~= "deleteAll" then return end
+                profileAction = nil
                 queue(function()
                     if state.clearAllData() then
                         decisions.discardPending()
                         selectedAccount = nil
                     end
-                    armedSkill, armedRestore, armedAll, needsBuild = nil, false, false, true
+                    armedSkill, needsBuild = nil, true
                 end)
             else
-                armedRestore, armedAll, needsBuild = false, true, true
+                armedSkill, profileAction, profileError, needsBuild = nil, "deleteAll", nil, true
             end
-        end, { x = actionX, y = bottomY + 76, width = actionWidth, height = 22 })
+        end, { x = allX, y = allY, width = allWidth, height = 22,
+            colour = confirmingAll and confirmColour or nil })
 end
 
 -- Reopen the same movable window so its position and size survive closing it.
 function settingsPanel.open(actionQueue)
     queue = actionQueue
     if not window then
-        local gameArea = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
-        if not gameArea then return end
-        -- PrettyUI 1.3.0 can pick an occupied sprite ID on the shared game area in auto mode.
-        window = prettyui.Window.new(gameArea, {
+        -- The plugin layer has its own ID namespace, avoiding game-area collisions.
+        local parent = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+        if not parent then return end
+        window = prettyui.Window.new(parent, {
+            categoryID = "auto",
             title = "Resource Tracker settings",
             x = -305, y = -200, xAnchor = 0.5, yAnchor = 0.5,
-            width = 610, height = 400,
-            resizable = true, minWidth = 500, minHeight = 330,
+            width = 600, height = 385,
+            resizable = false,
+            -- Let players move the Settings window in the fixed Classic layout.
+            respectInterfaceLock = false,
             scrollable = false,
             onClose = function() isOpen = false end
         })
     end
-    armedSkill, armedRestore, armedAll, selectedAccount = nil, false, false, nil
+    armedSkill, profileAction, selectedAccount, profileError = nil, nil, nil, nil
     needsBuild = true
     isOpen = true
     window:Show()
@@ -291,7 +352,7 @@ function settingsPanel.refresh()
     if not isOpen or not window then return end
     if not ui.Interfaces:GetInterface(window.content.interfaceID) then
         if profileTip then profileTip:Destroy(); profileTip = nil end
-        window, root, view, armedSkill, armedRestore, armedAll, selectedAccount, needsBuild =
+        window, root, view, armedSkill, profileAction, selectedAccount, profileError, needsBuild =
             nil, nil, nil, nil, nil, nil, nil, nil
         isOpen = false
         return
@@ -307,8 +368,8 @@ function settingsPanel.destroy()
     if view then view:Destroy() end
     if root then root:Destroy() end
     if window then window:Destroy() end
-    window, root, view, queue, profileTip, armedSkill, armedRestore, armedAll,
-        selectedAccount, needsBuild = nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
+    window, root, view, queue, profileTip, armedSkill, profileAction, selectedAccount,
+        profileError, needsBuild = nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
     shownGeneration = -1
     isOpen = false
 end

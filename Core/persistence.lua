@@ -1,7 +1,10 @@
 local persistence = {}
 persistence.overlayRows = { min = 4, max = 10, default = 7 }
+persistence.overlayBackdropOpacity = { min = 0, max = 100, default = 25 }
 -- Keep one local record per character, reachable by ID or linked name.
 local storageName = "resourceTrackerV1"
+local idPrefix = storageName .. ":lookup:id:"
+local namePrefix = storageName .. ":lookup:name:"
 
 -- Namespace saved data per account so characters do not share tracker totals.
 local function storageKey(accountId)
@@ -12,7 +15,7 @@ end
 -- permission, link that name-only record to the ID without moving its data.
 function persistence.resolve(id, name)
     if id then
-        local idAlias = storageName .. ":lookup:id:" .. id
+        local idAlias = idPrefix .. id
         local linked = PersistentDB:GetStructuredData(idAlias)
         if type(linked) ~= "table" or type(linked.account) ~= "string" then linked = nil end
         local account = linked and linked.account
@@ -22,14 +25,14 @@ function persistence.resolve(id, name)
                 account = "name:" .. name
             end
         end
-        local nameAlias = storageName .. ":lookup:name:" .. name
+        local nameAlias = namePrefix .. name
         local nameLinked = PersistentDB:SetString(nameAlias, account)
         local idLinked = PersistentDB:SetStructuredData(idAlias,
             { account = account, name = name })
         -- A renamed character must not leave its old name pointing at this save.
         if nameLinked and idLinked and linked and type(linked.name) == "string"
             and linked.name ~= name then
-            local oldAlias = storageName .. ":lookup:name:" .. linked.name
+            local oldAlias = namePrefix .. linked.name
             if PersistentDB:GetString(oldAlias) == account then
                 PersistentDB:Delete(oldAlias)
             end
@@ -37,7 +40,7 @@ function persistence.resolve(id, name)
         return account, nameLinked and idLinked
     end
     if name then
-        return PersistentDB:GetString(storageName .. ":lookup:name:" .. name) or "name:" .. name, true
+        return PersistentDB:GetString(namePrefix .. name) or "name:" .. name, true
     end
 end
 
@@ -46,7 +49,6 @@ end
 function persistence.profiles()
     local profiles, names = {}, {}
     local recordPrefix = storageName .. ":"
-    local idPrefix = storageName .. ":lookup:id:"
     PersistentDB:IterateEntries(function(key, value)
         if key:sub(1, #idPrefix) == idPrefix and type(value) == "table"
             and type(value.account) == "string" and type(value.name) == "string" then
@@ -84,6 +86,35 @@ function persistence.exists(accountId)
     return PersistentDB:CheckExists(storageKey(accountId))
 end
 
+local function linksToProfile(key, value, account)
+    if key:sub(1, #namePrefix) == namePrefix then return value == account end
+    return key:sub(1, #idPrefix) == idPrefix and type(value) == "table" and value.account == account
+end
+
+-- Delete the record before unlinking it so a failed delete leaves the save reachable.
+-- keepLinks lets an active character start a fresh save under the same account.
+function persistence.deleteProfile(account, options)
+    local key = storageKey(account)
+    if PersistentDB:CheckExists(key) then
+        local saved = PersistentDB:GetStructuredData(key)
+        if type(saved) ~= "table" or type(saved.items) ~= "table"
+            or not PersistentDB:Delete(key) then return false end
+    end
+    if options and options.keepLinks then return true end
+
+    local aliases = {}
+    PersistentDB:IterateEntries(function(alias, value)
+        if linksToProfile(alias, value, account) then aliases[#aliases + 1] = alias end
+        return false
+    end)
+    for _, alias in ipairs(aliases) do
+        if linksToProfile(alias, PersistentDB:Get(alias), account) then
+            PersistentDB:Delete(alias)
+        end
+    end
+    return true
+end
+
 function persistence.clearAll()
     return PersistentDB:Clear()
 end
@@ -118,6 +149,10 @@ function persistence.load(accountId)
         data.settings.showArtefacts = settings.showArtefacts ~= false
         data.settings.showOverlay = settings.showOverlay == true
         data.settings.showOverlayBackdrop = settings.showOverlayBackdrop == true
+        local opacity, opacityLimits = settings.overlayBackdropOpacity, persistence.overlayBackdropOpacity
+        if nonNegativeInteger(opacity) and opacity >= opacityLimits.min and opacity <= opacityLimits.max then
+            data.settings.overlayBackdropOpacity = opacity
+        end
         local rows = settings.overlayRows
         if nonNegativeInteger(rows)
             and rows >= persistence.overlayRows.min and rows <= persistence.overlayRows.max then

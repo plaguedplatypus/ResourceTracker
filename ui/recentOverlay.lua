@@ -8,7 +8,6 @@ local layerCategory = 188
 local rowWidth, rowHeight = 230, 23
 local defaultPosition = { x = 14, y = 38 }
 local rowOptions = { shadow = true }
-local backdropColour = Vector4.new(0, 0, 0, 0.25)
 
 local root, rootId, content, handle
 local shownRevision, shownGeneration
@@ -96,11 +95,12 @@ local function drawRows(settings)
     content:DeleteAll()
     content:SetSize(rowWidth, count * rowHeight)
     content.hidden = not hasRows
-    if hasRows and settings.showOverlayBackdrop == true then
+    local opacity = settings.overlayBackdropOpacity or persistence.overlayBackdropOpacity.default
+    if hasRows and settings.showOverlayBackdrop == true and opacity > 0 then
         local backdrop = ui.Rectangle.new(content)
         backdrop:SetSize(0, 0, 1, 1)
         backdrop.fill = true
-        backdrop.colour = backdropColour
+        backdrop.colour = Vector4.new(0, 0, 0, opacity / 100)
         backdrop.clickthrough = true
     end
     for index = 1, count do

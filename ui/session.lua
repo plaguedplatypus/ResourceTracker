@@ -273,16 +273,17 @@ end
 function session.open(actionQueue)
     queue = actionQueue
     if not window then
-        local gameArea = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
-        if not gameArea then return end
-        -- These are starting dimensions only. PrettyUI handles dragging the
-        -- title bar and resizing every edge; the report uses the live viewport.
-        -- PrettyUI 1.3.0 can pick an occupied sprite ID on the shared game area in auto mode.
-        window = prettyui.Window.new(gameArea, {
+        -- The plugin layer has its own ID namespace, avoiding game-area collisions.
+        local parent = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+        if not parent then return end
+        window = prettyui.Window.new(parent, {
+            categoryID = "auto",
             title = "Resource Tracker session",
             x = -215, y = -185, xAnchor = 0.5, yAnchor = 0.5,
             width = 430, height = 370,
             resizable = true, minWidth = 330, minHeight = 240,
+            -- Let players move the Session window in the fixed Classic layout.
+            respectInterfaceLock = false,
             scrollable = false,
             -- Closing hides the report while keeping the window for later use.
             onClose = function() isOpen = false end

@@ -67,11 +67,13 @@ Select the **settings button** at the right of Resource Tracker's bottom bar to 
 
 There you can choose which skill tabs appear and whether to show item icons, goals, green `+` signs on positive gains, and Archaeology artefacts. The `+` sign is on by default; the count itself stays white. Hiding artefacts leaves their counts saved.
 
+Enable **Show overlay backdrop** to use the **Backdrop opacity** slider. The backdrop ranges from transparent at 0% to solid black at 100% and defaults to 25%.
+
 To remove every tracker row for one skill, select **Clear** beside that skill and then **Confirm**. This leaves session totals and daily history intact.
 
-Under **Saved Profiles**, choose another character's local save, then select **Use profile** and **Confirm replace**. This copies that profile's counts, goals, settings, and history over the current character's save. The source profile remains available.
+Under **Saved Profiles**, **Current** is your active save. Choose another character's local save to enable **Copy Profile**. Select **Copy Profile** and **Confirm Copy** to copy its counts, goals, settings, and history over your active save. The source profile remains available.
 
-Select **Delete all data** and **Confirm delete** to erase Resource Tracker's saved data and characters on the device. Other plugins' data is unaffected.
+Select **Delete Profile** and **Confirm Delete** to permanently remove the selected save. Deleting **Current** resets the tracker for this character. Select **Delete All Data** and **Confirm Delete All** to erase every Resource Tracker profile on the device.
 
 Counts, goals, Ports stock and observed gains, settings, and daily history are saved locally for each player account.
 

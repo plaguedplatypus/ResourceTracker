@@ -18,6 +18,7 @@ local sortLabels = { recent = "Recent", name = "A-Z", count = "Count" }
 local icons = resourceRow.skillIcons
 local label, formatCount = resourceRow.label, resourceRow.formatCount
 local selectedOutline = Vector4.new(0.82, 0.61, 0.25, 0.95)
+local warningColour = Vector4.new(1, 0.76, 0.36, 1)
 local rowOptions = { showPin = true }
 local parent, root, list, selected
 local tabOffset, shownCategory = 0, nil
@@ -141,7 +142,8 @@ local function selection(settings)
     if category ~= (settings.category or "all") or category == "divination" then
         group = "all"
     end
-    return category, group, not multiple and onlySkill ~= nil
+    local hasVisibleTabs = onlySkill ~= nil
+    return category, group, hasVisibleTabs and not multiple, hasVisibleTabs
 end
 
 -- Apply player visibility, skill, and group choices before sorting rows.
@@ -216,7 +218,18 @@ drawRows = function(settings, revealSelected)
     itemEditor.clear()
     if nameTip then nameTip:Hide() end
     shownOwned = nil
-    local current, activeGroup = selection(settings)
+    local current, activeGroup, _, hasVisibleTabs = selection(settings)
+    if not hasVisibleTabs then
+        ports.clearSelection()
+        list.content:DeleteAll()
+        local warningHeight = 54
+        list:SetContentHeight(warningHeight + 12)
+        local warning = label(list.content, "All tabs are hidden.<br>Enable a tab in Settings.",
+            6, 6, math.max(1, list.contentWidth - 12), warningHeight, warningColour)
+        warning.maxLines = 0
+        list:SetScrollPosition(0)
+        return true
+    end
     local editContext = {
         root = root, list = list, tooltipLayer = tooltipLayer,
         queue = panel.queue,
@@ -236,7 +249,7 @@ drawRows = function(settings, revealSelected)
     local height = list.root.height
     list.content:DeleteAll()
     local entries = itemsFor(settings)
-    local showArtefactSection = selection(settings) == "archaeology"
+    local showArtefactSection = current == "archaeology"
     local contentHeight = 4
     local artefactHeaderAdded = false
     for _, entry in ipairs(entries) do
@@ -503,13 +516,17 @@ local function build()
     end)
     local settings = state.getSettings()
     local hidden = settings.hiddenSkills or {}
-    local current, activeGroup, singleSkill = selection(settings)
+    local current, activeGroup, singleSkill, hasVisibleTabs = selection(settings)
     local visible = {}
-    for _, entry in ipairs(categories) do
-        if (entry.id == "all" and not singleSkill)
-            or (entry.id ~= "all" and not hidden[entry.id]) then
-            visible[#visible + 1] = entry
+    if hasVisibleTabs then
+        for _, entry in ipairs(categories) do
+            if (entry.id == "all" and not singleSkill)
+                or (entry.id ~= "all" and not hidden[entry.id]) then
+                visible[#visible + 1] = entry
+            end
         end
+    else
+        visible[1] = { id = "easterEgg" }
     end
     local tabWidth, tabHeight = 28, 29
     -- Continue the tabs' lower edge across unused space in a wide dock.
@@ -605,6 +622,7 @@ local function build()
     for index = tabOffset + 1, math.min(#visible, tabOffset + slots) do
         local entry = visible[index]
         local skill = entry.id
+        local isEasterEgg = skill == "easterEgg"
         local x, y = tabStart + (index - tabOffset - 1) * tabWidth, 3
         -- Sprite components cannot own children; the layer holds the tab
         -- background, skill icon, and optional text.
@@ -617,32 +635,35 @@ local function build()
         local active = current == skill
         background.spriteID = active and prettyui.Sprites.ICON_TAB.active
             or prettyui.Sprites.ICON_TAB.inactive
-        -- Keep the active skill highlighted while hovering other tabs.
-        tab:Subscribe(ui.Hook.ONMOUSEOVER, function()
-            if not active then background.spriteID = prettyui.Sprites.ICON_TAB.hovered end
-            return true
-        end)
-        -- Return inactive tabs to their resting sprite.
-        tab:Subscribe(ui.Hook.ONMOUSELEAVE, function()
-            background.spriteID = active and prettyui.Sprites.ICON_TAB.active
-                or prettyui.Sprites.ICON_TAB.inactive
-            return true
-        end)
-        -- Choosing a skill returns its group picker to All groups.
-        tab:Subscribe(ui.Hook.ONCLICK, function()
-            -- Save both tab and group choices in one Logic action.
-            panel.queue(function()
-                state.setSetting("category", skill)
-                state.setSetting("group", "all")
+        if isEasterEgg then
+            tab.clickthrough = true
+        else
+            -- Keep the active skill highlighted while hovering other tabs.
+            tab:Subscribe(ui.Hook.ONMOUSEOVER, function()
+                if not active then background.spriteID = prettyui.Sprites.ICON_TAB.hovered end
+                return true
             end)
-            return true
-        end)
-        tabTips[#tabTips + 1] = compactTooltip.attach(tab, root, entry.label)
-        if icons[skill] then
+            tab:Subscribe(ui.Hook.ONMOUSELEAVE, function()
+                background.spriteID = active and prettyui.Sprites.ICON_TAB.active
+                    or prettyui.Sprites.ICON_TAB.inactive
+                return true
+            end)
+            -- Choosing a skill returns its group picker to All groups.
+            tab:Subscribe(ui.Hook.ONCLICK, function()
+                panel.queue(function()
+                    state.setSetting("category", skill)
+                    state.setSetting("group", "all")
+                end)
+                return true
+            end)
+            tabTips[#tabTips + 1] = compactTooltip.attach(tab, root, entry.label)
+        end
+        local sprite = isEasterEgg and id.Sprite.EASTER24_EGG_HUNT_RIBBON_ICON or icons[skill]
+        if sprite then
             local icon = ui.Sprite.new(tab)
             icon:SetPos(1, 1)
             icon:SetSize(25, 27)
-            icon.spriteID = icons[skill]
+            icon.spriteID = sprite
             icon.clickthrough = true
         elseif skill == "seren" then
             local image = Plugin.resources and
@@ -667,7 +688,7 @@ local function build()
     local sort = settings.sort or "recent"
     ribbonToggle.attach(parent, panel.queue, hasUi, build)
     manageSettings.attach(panel.queue, hasUi, settingsPanel.open)
-    if current ~= "ports" then
+    if hasVisibleTabs and current ~= "ports" then
         -- Ports follows the game's fixed resource order, so it has no sort button.
         prettyui.SimpleButton.new(root, sortLabels[sort], function()
             panel.queue(function()
@@ -681,7 +702,7 @@ local function build()
         end, { categoryID = "auto", x = 4, y = controlY, width = sortWidth, height = 22 })
     end
     local groups = catalog.getGroups(current)
-    if #groups > 1 then
+    if hasVisibleTabs and #groups > 1 then
         local group = activeGroup
         local groupX = current == "ports" and 4 or sortWidth + 8
         local groupWidth = width - groupX - 4
@@ -701,7 +722,7 @@ local function build()
             end, { categoryID = "auto", x = groupX, y = controlY, height = 22,
                 width = groupWidth })
     end
-    local listY = controlY + 25
+    local listY = hasVisibleTabs and controlY + 25 or controlY
     list = prettyui.SimpleView.new(root, { categoryID = "auto", x = 2, y = listY,
         width = width - 4, height = math.max(1, height - listY - 2),
         scrollStep = 24 })

@@ -3,8 +3,14 @@
 ## 1.6.1
 
 - Updated the Plugin Hub tracker to use PrettyUI 1.3.0 component allocation. PrettyUI 1.3.0 or later is required.
-- Use inherited component IDs for the Session and Settings windows to avoid sprite ID collisions when opening them.
+- Open Session and Settings on the dedicated plugin layer with automatic component IDs to avoid the PrettyUI legacy allocation warning.
 - Compact tooltips now build on first hover and retain their styling on repeat hovers.
+- The Session and Settings windows can be moved and resized in Classic layout and while the game interface is locked.
+- Added a **Backdrop opacity** slider for the recent items overlay, from 0% to 100%. The default is 25%.
+- Added **Delete Profile** to remove a selected saved profile after confirmation. Renamed the existing copy action to **Copy Profile**.
+- Tightened the Saved Profiles layout and highlighted confirmation buttons in red.
+- Saved Profiles opens on **Current**. Copy Profile is disabled for the active save, and Delete Profile resets its tracker data after confirmation.
+- When all tracker tabs are hidden, the tracker shows an Easter Egg icon and a reminder to re-enable a tab in Settings.
 
 ## 1.6.0
 

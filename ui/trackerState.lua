@@ -103,6 +103,14 @@ function trackerState.open(id, name)
     end
 end
 
+local function resetData()
+    data = { items = {}, ports = {}, order = 0, settings = {}, session = { days = {} } }
+    portsObserved = false
+    elapsed, epochOffset = 0, nil
+    generation = generation + 1
+    revision = revision + 1
+end
+
 -- End the login session and clear account data when leaving the game.
 function trackerState.unload()
     if ready then
@@ -111,12 +119,8 @@ function trackerState.unload()
         sessionStats.close(data.session)
         persistence.save(data, accountId)
     end
-    data = { items = {}, ports = {}, order = 0, settings = {}, session = { days = {} } }
-    portsObserved = false
     accountId, ready, trackedId, linkedName, waitingSettings = nil, false, nil, nil, {}
-    elapsed, epochOffset = 0, nil
-    generation = generation + 1
-    revision = revision + 1
+    resetData()
 end
 
 -- Counting waits for the character record before writing gathered resources.
@@ -142,16 +146,21 @@ function trackerState.restoreProfile(account, target)
     return true
 end
 
+-- Keep the active character linked so subsequent gains start a fresh save under the same account.
+function trackerState.deleteProfile(account, target)
+    if not ready or accountId ~= target or account == nil then return false end
+    local deletingCurrent = account == accountId
+    if not persistence.deleteProfile(account, { keepLinks = deletingCurrent }) then return false end
+    if deletingCurrent then resetData() end
+    return true
+end
+
 -- Clear every character's records and links before the current session can
 -- save its old in-memory state back into the database.
 function trackerState.clearAllData()
     if not persistence.clearAll() then return false end
-    data = { items = {}, ports = {}, order = 0, settings = {}, session = { days = {} } }
-    portsObserved = false
     accountId, ready, trackedId, linkedName, waitingSettings = nil, false, nil, nil, {}
-    elapsed, epochOffset = 0, nil
-    generation = generation + 1
-    revision = revision + 1
+    resetData()
     return true
 end
 
