@@ -71,6 +71,7 @@ function itemEditor.draw(owner, y, width, context, options)
     end
 
     local field = prettyui.TextField.new(layer, {
+        categoryID = "auto",
         x = 4, y = 3, width = width - 8, height = 21,
         text = draft, placeholder = options.setCount and "Count or goal" or "goal",
         filterMode = ui.InputFieldFilterMode.NUMBERS_AS_TEXT, maxLength = 12,
@@ -81,6 +82,7 @@ function itemEditor.draw(owner, y, width, context, options)
     local function addIcon(sprite, tip, action, x, disabled, size)
         size = size or 16
         local button = prettyui.SpriteButton.new(layer, sprite, action, {
+            categoryID = "auto",
             x = x, y = 35 - size / 2, size = size, disabled = disabled
         })
         controls[#controls + 1] = button

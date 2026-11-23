@@ -56,6 +56,7 @@ local function build()
     root:SetSize(width, height)
     local bottomY = height - 85
     view = prettyui.SimpleView.new(root, {
+        categoryID = "auto",
         x = 2, y = 2, width = width - 4, height = math.max(1, bottomY - 6)
     })
 
@@ -103,6 +104,7 @@ local function build()
 
     title(view.content, "VISIBLE TABS", leftX, 4, columnWidth)
     prettyui.CheckboxButton.new(view.content, choices, {
+        categoryID = "auto",
         x = leftX, y = controlsY, width = choiceWidth,
         -- Hiding the current skill also resets the selected tab and group.
         onChange = function(_, _, skill, selected)
@@ -143,12 +145,13 @@ local function build()
                     profileAction = nil
                     needsBuild = true
                 end)
-            end, { x = leftX + choiceWidth + 6,
+            end, { categoryID = "auto", x = leftX + choiceWidth + 6,
                 y = controlsY + (index - 1) * 22, width = clearWidth, height = 20 })
     end
 
     title(view.content, "DISPLAY", rightX, 4, columnWidth)
     prettyui.CheckboxButton.new(view.content, displayChoices, {
+        categoryID = "auto",
         x = rightX, y = controlsY, width = columnWidth,
         -- PrettyUI callbacks queue persistent setting edits for Logic.
         onChange = function(_, _, name, selected)
@@ -170,11 +173,13 @@ local function build()
     end
     note(view.content, "Overlay rows", rightX, rowsY + 1, 96)
     prettyui.SimpleButton.new(view.content, "-", function() adjustRows(-1) end,
-        { x = rightX + 97, y = rowsY, width = 28, height = 20, disabled = rows == rowLimits.min })
+        { categoryID = "auto", x = rightX + 97, y = rowsY, width = 28, height = 20,
+            disabled = rows == rowLimits.min })
     local rowCount = note(view.content, tostring(rows), rightX + 127, rowsY + 1, 26)
     rowCount.alignHorizontal = ui.AlignMode.CENTRE
     prettyui.SimpleButton.new(view.content, "+", function() adjustRows(1) end,
-        { x = rightX + 155, y = rowsY, width = 28, height = 20, disabled = rows == rowLimits.max })
+        { categoryID = "auto", x = rightX + 155, y = rowsY, width = 28, height = 20,
+            disabled = rows == rowLimits.max })
 
     local opacityLimits = persistence.overlayBackdropOpacity
     local opacity = settings.overlayBackdropOpacity or opacityLimits.default
@@ -183,6 +188,7 @@ local function build()
     opacityValue.alignHorizontal = ui.AlignMode.BOTTOMRIGHT
     local pendingOpacity
     view:AddSlider({
+        categoryID = "auto",
         x = rightX, y = opacityY + 20, width = columnWidth,
         min = opacityLimits.min, max = opacityLimits.max, value = opacity,
         disabled = settings.showOverlayBackdrop ~= true,
@@ -239,6 +245,7 @@ local function build()
     info:SetSize(14, 14)
     info.spriteID = id.Sprite.RS3_ICON_INFO
     profileTip = prettyui.Tooltip.attach(info, root, {
+        categoryID = "auto",
         text = "Saved Profiles - are shared by characters on this device.<br><br>"
             .. "*Current* is this character's active save.<br><br>"
             .. "*Copy Profile* replaces this character's save with a copy of the selected profile.<br><br>"
@@ -250,6 +257,7 @@ local function build()
     local copyX = deleteX - actionGap - actionWidth
     local pickerY = bottomY + 23
     prettyui.ComboBox.new(root, {
+        categoryID = "auto",
         x = 8, y = pickerY, width = copyX - actionGap - 8, height = 22,
         entries = entries, selectedID = selectedIndex,
         maxVisibleEntries = 2, disabled = not ready or #entries == 1,
@@ -281,7 +289,7 @@ local function build()
             else
                 armedSkill, profileAction, needsBuild = nil, action, true
             end
-        end, { x = x, y = pickerY, width = actionWidth, height = 22,
+        end, { categoryID = "auto", x = x, y = pickerY, width = actionWidth, height = 22,
             colour = confirming and confirmColour or nil, disabled = not enabled })
     end
     addProfileAction("copy", "Copy Profile", "Confirm Copy", copyX, state.restoreProfile)
@@ -317,7 +325,7 @@ local function build()
             else
                 armedSkill, profileAction, profileError, needsBuild = nil, "deleteAll", nil, true
             end
-        end, { x = allX, y = allY, width = allWidth, height = 22,
+        end, { categoryID = "auto", x = allX, y = allY, width = allWidth, height = 22,
             colour = confirmingAll and confirmColour or nil })
 end
 

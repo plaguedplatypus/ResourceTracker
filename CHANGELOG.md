@@ -3,7 +3,7 @@
 ## 1.6.1
 
 - Updated the Plugin Hub tracker to use PrettyUI 1.3.0 component allocation. PrettyUI 1.3.0 or later is required.
-- Open Session and Settings on the dedicated plugin layer with automatic component IDs to avoid the PrettyUI legacy allocation warning.
+- Open Session and Settings on the dedicated plugin layer. Explicitly use automatic IDs for PrettyUI controls across the tracker, including the item editor.
 - Compact tooltips now build on first hover and retain their styling on repeat hovers.
 - The Session and Settings windows can be moved and resized in Classic layout and while the game interface is locked.
 - Added a **Backdrop opacity** slider for the recent items overlay, from 0% to 100%. The default is 25%.

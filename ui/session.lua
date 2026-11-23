@@ -67,6 +67,7 @@ local function drawTable(report, y)
     label(view.content, "Count", countX, y, countWidth, ui.AlignMode.CENTRE, titleColour)
     label(view.content, "Per/hr", rateX + 5, y, rateTextWidth, nil, titleColour)
     view:AddSprite(id.Sprite.RS3_ICON_INFO, {
+        categoryID = "auto",
         x = rateX + 7 + rateTextWidth, y = y + 1, size = 14, absolute = true,
         tooltip = { text = "Items per active hour. <br>Active time includes all gathering sources.",
             maxWidth = 260 }
@@ -101,6 +102,7 @@ local function buildSession()
     -- A new session can also be started manually without clearing daily history.
     local infoX = 10 + utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "THIS SESSION")
     view:AddSprite(id.Sprite.RS3_ICON_INFO, {
+        categoryID = "auto",
         x = infoX,
         y = y + 1, size = 16, absolute = true,
         tooltip = { text = "A session starts with the first tracked resource after login or after New session. <br><br>It ends at logout or when you start another session. <br>Daily history keeps all gains.",
@@ -122,7 +124,7 @@ local function buildSession()
             state.newSession()
             rebuild = true
         end)
-    end, { x = buttonX, y = buttonY, width = buttonWidth, height = 20 })
+    end, { categoryID = "auto", x = buttonX, y = buttonY, width = buttonWidth, height = 20 })
     y = y + 23
     startedLabel = label(view.content, "Started: " .. (report.started or "-"),
         5, y, view.contentWidth - 10)
@@ -133,6 +135,7 @@ local function buildSession()
         5, y, view.contentWidth - 10)
     -- Only active time stops after an idle interval; the session remains open.
     view:AddSprite(id.Sprite.RS3_ICON_INFO, {
+        categoryID = "auto",
         x = 5 + utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "Active time: 00:00:00") + 5,
         y = y + 1, size = 16, absolute = true,
         tooltip = { text = "Active time pauses after one minute without a tracked resource gain and resumes on the next gain.",
@@ -162,6 +165,7 @@ local function buildHistory()
         choices[#choices + 1] = { text = day, id = index }
     end
     prettyui.ComboBox.new(root, {
+        categoryID = "auto",
         x = 20, y = 45, width = pickerWidth, height = 22,
         entries = choices, selectedID = historyIndex,
         maxVisibleEntries = 8, disabled = not hasHistory,
@@ -186,7 +190,7 @@ local function buildHistory()
             historyClearArmed = true
             rebuild = true
         end
-    end, { x = pickerWidth + 28, y = 45, width = 130, height = 22 })
+    end, { categoryID = "auto", x = pickerWidth + 28, y = 45, width = 130, height = 22 })
     if not hasHistory then
         historyClearArmed = false
         label(view.content, "No daily history yet.", 5, 31, view.contentWidth - 10)
@@ -240,9 +244,10 @@ local function build()
             page = entry.id
             historyClearArmed = false
             rebuild = true
-        end, { x = 2 + (index - 1) * (tabWidth + 2), y = 2, width = tabWidth, height = 22 })
+        end, { categoryID = "auto", x = 2 + (index - 1) * (tabWidth + 2), y = 2, width = tabWidth, height = 22 })
     end
     view = prettyui.SimpleView.new(root, {
+        categoryID = "auto",
         x = 18, y = 43, width = width - 36, height = math.max(1, height - 61)
     })
     if page == "session" then
