@@ -18,7 +18,13 @@ Only supported gains are counted on the ordinary resource tabs. They start recor
 
 ## Using the tracker
 
-Open Resource Tracker from the Plugin Hub ribbon and gather a supported resource. It appears as a row with its name, icon, and count. If the game does not provide an item icon, the tracker shows the related skill icon.
+By default, open Resource Tracker from its tab in the game's Plugin Hub. Open Settings with the cog in the bottom-right corner.
+
+In Settings, use **Classic Mode Settings** in Classic layout or **Plugin Hub** in the modern layout. **Hide Plugin Hub ribbon** gives the tracker more room while its Hub page is visible. The ribbon returns when you leave the page. Hover over the info icon for a summary.
+
+Turn on **Use PrettyUI Side Bar** to switch to the PrettyUI ribbon in Modern layout or the PrettyUI sidebar in Classic layout. In Modern layout, unlock the game interface and drag the tracker by its title bar onto a compatible window header or tab strip. PrettyUI remembers its placement. Both panel settings are saved per character.
+
+Gather a supported resource to add a row with its name, icon, and count. If the game does not provide an item icon, the tracker shows the related skill icon.
 
 Sort rows by **Recent**, **A-Z**, or **Count**. Some skills also offer additional item and zone filters.
 
@@ -57,21 +63,21 @@ Select **New Session** to clear the current session; the next tracked gain start
 
 **Daily History** shows counts and items per hour for each recorded UTC day. Choose a day from the list to review it, or clear the saved history in that window.
 
+Choose **Export Session** under **New session** to export your current session, or **Export Day** under **Clear history** to export the day selected in the dropdown. Click the CSV field and press Ctrl+A, then Ctrl+C to copy it. The CSV includes resource counts, active time in seconds, and items per hour.
+
 <img src="https://image.modcdn.io/members/20c3/63901461/profile/rtsession2.png" alt="Session and daily history" width="400" height="346">
 
 ## Settings and saved progress
 
-Select the **settings button** at the right of Resource Tracker's bottom bar to open its settings window.
-
-<img src="https://image.modcdn.io/members/20c3/63901461/profile/2026-11-0802_43_50-runescape.png" alt="Settings button" width="182" height="119">
+Select the **TOOLS** next to the Notepad tab in the PrettyUI dock, or in the bottom-right corner of the native Plugin Hub, to open Settings.
 
 There you can choose which skill tabs appear and whether to show item icons, goals, green `+` signs on positive gains, and Archaeology artefacts. The `+` sign is on by default; the count itself stays white. Hiding artefacts leaves their counts saved.
 
-Enable **Show overlay backdrop** to use the **Backdrop opacity** slider. The backdrop ranges from transparent at 0% to solid black at 100% and defaults to 25%.
+Set **Overlay rows** to any value from 1 to 10. The default is 7. With **Show goals** on, overlay items with a goal show their target and progress. Enable **Show overlay backdrop** to use the **Backdrop opacity** slider. The backdrop ranges from transparent at 0% to solid black at 100% and defaults to 25%.
 
 To remove every tracker row for one skill, select **Clear** beside that skill and then **Confirm**. This leaves session totals and daily history intact.
 
-Under **Saved Profiles**, **Current** is your active save. Choose another character's local save to enable **Copy Profile**. Select **Copy Profile** and **Confirm Copy** to copy its counts, goals, settings, and history over your active save. The source profile remains available.
+Under **Saved Profiles**, **Current** shows your character's name and selects the active save. Choose another character's local save to enable **Copy Profile**. Select **Copy Profile** and **Confirm Copy** to copy its counts, goals, settings, and history over your active save. The source profile remains available.
 
 Select **Delete Profile** and **Confirm Delete** to permanently remove the selected save. Deleting **Current** resets the tracker for this character. Select **Delete All Data** and **Confirm Delete All** to erase every Resource Tracker profile on the device.
 
@@ -79,14 +85,9 @@ Counts, goals, Ports stock and observed gains, settings, and daily history are s
 
 <img src="https://image.modcdn.io/members/20c3/63901461/profile/rt-settings.png" alt="Resource Tracker settings" width="450" height="270">
 
-Use the eye button at the left of the bottom bar to hide or show the Plugin Hub ribbon. Hiding it gives the tracker more room.
-
-<img src="https://image.modcdn.io/members/20c3/63901461/profile/ribbon1.png" alt="Plugin Hub ribbon shown" width="300" height="207"> <img src="https://image.modcdn.io/members/20c3/63901461/profile/ribbon2.png" alt="Plugin Hub ribbon hidden" width="300" height="207">
-
-
 ## Requirements
 
-Resource Tracker requires PrettyUI 1.3.0 or later for its interface.
+Resource Tracker requires PrettyUI 1.4.0 or later.
 
 ## Contact and feedback
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.6.2
+
+- Resource Tracker requires PrettyUI 1.4.0 or later and opens in the native Plugin Hub by default. Turn on **Use PrettyUI Side Bar** for the Classic sidebar or Modern docking.
+- Resource Tracker shares one resource-stack icon across the docked tab, PrettyUI ribbon, Classic sidebar, and native Plugin Hub ribbon. The native ribbon displays it on clients with custom ribbon icon support.
+- Open Settings from the cog next to Session in the PrettyUI dock or in the bottom-right corner of the native Plugin Hub.
+- Choose the tracker panel and optionally hide the Hub ribbon in **Classic Mode Settings** or **Plugin Hub**. Hover over the info icon to see how these options work. Both choices are saved per character.
+- The recent items overlay now supports 1–10 rows, with 7 rows by default.
+- The recent items overlay shows progress toward each item's goal when **Show goals** is enabled.
+- Keep the PrettyUI dock mounted while the client refreshes its interface handles so an active drag can finish.
+- Dock tabs ignore clicks queued just before the tracker closes or switches pages.
+- Category tabs remember their scroll position when you resize the tracker.
+- Saved Profiles shows the current character's name.
+- Export the current session or the selected day's report as CSV from the Session window.
+
 ## 1.6.1
 
 - Updated the Plugin Hub tracker to use PrettyUI 1.3.0 component allocation. PrettyUI 1.3.0 or later is required.

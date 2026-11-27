@@ -5,6 +5,11 @@ local stats = {}
 -- a session, and logout ends it through the native game-state event.
 local pauseSeconds = 60
 
+-- Use the report's shared gathering time for rates in the UI and CSV.
+function stats.itemsPerHour(count, activeSeconds)
+    if activeSeconds > 0 then return count * 3600 / activeSeconds end
+end
+
 -- Session and daily tables use the same resource key as the main tracker.
 local function addItem(items, update)
     local key = catalog.makeKey(update.skill, update.name)

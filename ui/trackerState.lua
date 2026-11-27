@@ -7,6 +7,7 @@ local trackerState = {}
 -- call its functions instead of changing counts or settings directly.
 local data = { items = {}, ports = {}, order = 0, settings = {}, session = { days = {} } }
 local accountId
+local characterName
 local ready = false
 local trackedId
 local linkedName
@@ -65,11 +66,13 @@ end
 
 -- Link both identifiers to one record. Gaining tracking permission while a
 -- name-only session is open keeps that same record and its active session.
-function trackerState.open(id, name)
+function trackerState.open(id, displayName)
+    local name = displayName:lower()
     local idText = id and tostring(id)
     if ready and trackedId == idText and linkedName == name then return end
     local account, linked = persistence.resolve(idText, name)
     if not account then return end
+    characterName = displayName
     if ready and accountId == account then
         trackedId, linkedName = idText, linked and name or nil
         return
@@ -120,6 +123,7 @@ function trackerState.unload()
         persistence.save(data, accountId)
     end
     accountId, ready, trackedId, linkedName, waitingSettings = nil, false, nil, nil, {}
+    characterName = nil
     resetData()
 end
 
@@ -130,6 +134,10 @@ end
 
 function trackerState.getAccount()
     return accountId
+end
+
+function trackerState.getCharacterName()
+    return characterName
 end
 
 -- Restore a copy for this character; the source profile keeps its own record.
@@ -160,6 +168,7 @@ end
 function trackerState.clearAllData()
     if not persistence.clearAll() then return false end
     accountId, ready, trackedId, linkedName, waitingSettings = nil, false, nil, nil, {}
+    characterName = nil
     resetData()
     return true
 end

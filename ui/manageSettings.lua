@@ -1,63 +1,72 @@
+-- Mounts Resource Tracker's Settings cog in the native Plugin Hub footer.
 local compactTooltip = require("ui/compactTooltip")
 
 local manageSettings = {}
-local buttonRoot, tipLayer
+local buttonRoot, buttonCategory, buttonId, tipLayer
 
--- The Plugin Hub footer stays loaded after our ribbon page closes.
-function manageSettings.detach()
-    if buttonRoot then
-        pcall(function() prettyui.Tooltip.unregisterContext(buttonRoot) end)
-        if ui.Interfaces:GetInterface(buttonRoot.interfaceID) then
-            pcall(function() buttonRoot:Destroy() end)
-        end
-        buttonRoot = nil
-    end
-    if tipLayer then
-        if ui.Interfaces:GetInterface(tipLayer.interfaceID) then
-            pcall(function() tipLayer:Destroy() end)
-        end
-        tipLayer = nil
-    end
+local function getFooter()
+    return ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2_PLUGIN_CONTENT__BUTTON_LAYER)
 end
 
--- The caller supplies its own settings window; the Hub has no direct-open API.
-function manageSettings.attach(queue, active, openSettings)
+local function isMounted(footer)
+    return buttonRoot and footer and footer:GetChild(buttonCategory, buttonId) == buttonRoot
+end
+
+-- The shared footer can outlive our page or be replaced independently of it.
+function manageSettings.detach()
+    if not buttonRoot then return end
+    if isMounted(getFooter()) then
+        prettyui.Tooltip.unregisterContext(buttonRoot)
+        buttonRoot:Destroy()
+    else
+        -- The old tooltip target may already have been retired with the footer.
+        pcall(prettyui.Tooltip.unregisterContext, buttonRoot)
+    end
+    if tipLayer and ui.Interfaces:GetInterface(tipLayer.interfaceID) then tipLayer:Destroy() end
+    buttonRoot, buttonCategory, buttonId, tipLayer = nil, nil, nil, nil
+end
+
+function manageSettings.sync(queue, active, openSettings)
+    local footer = getFooter()
+    if isMounted(footer) then return end
     manageSettings.detach()
-    local footer = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2_PLUGIN_CONTENT__BUTTON_LAYER)
     if not footer then return end
 
-    buttonRoot = ui.Layer.new(footer)
-    buttonRoot:SetPos(-28, 0, 1, 0)
-    buttonRoot:SetSize(24, 24)
-    local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
-        or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or buttonRoot
-    tipLayer = ui.Layer.new(top)
-    tipLayer:SetSize(0, 0, 1, 1)
-    tipLayer.clickthrough = true
+    local owner = ui.Layer.new(footer)
+    if not owner then return end
+    buttonRoot = owner
+    buttonCategory, buttonId = owner.categoryID, owner.dynamicID
+    owner:SetPos(-28, 0, 1, 0)
+    owner:SetSize(24, 24)
 
-    local currentButton, tipParent = buttonRoot, tipLayer
-    local tip
-    -- Centre the tip over the button, shifting it at the screen edge.
-    prettyui.Tooltip.registerContext(buttonRoot, tipLayer, function(target)
-        if buttonRoot ~= currentButton then return 0, 0 end
-        local targetPos, tipPos = target.xyGlobal, tipParent.xyGlobal
-        local tipWidth = tip.width
-        local x = targetPos.x - tipPos.x + (target.width - tipWidth) / 2
-        return math.max(0, math.min(x, tipParent.width - tipWidth)),
-            targetPos.y - tipPos.y + 3
-    end)
-    local button = prettyui.SimpleButton.new(buttonRoot, id.Sprite.RS3_ICON_GROUPING_SYSTEM_RANK_1,
+    local button = prettyui.SimpleButton.new(owner, id.Sprite.RS3_ICON_GROUPING_SYSTEM_RANK_1,
         function()
             queue(function()
-                -- Ignore a click queued just before another plugin takes this page.
-                if buttonRoot ~= currentButton or not active() then return end
-                openSettings(queue)
+                if buttonRoot == owner and isMounted(getFooter()) and active() then openSettings(queue) end
             end)
         end, { categoryID = "auto", width = 24, height = 24, iconSize = 24 })
-    -- Match the Hub icons despite PrettyUI's 16px inset for a 24px button.
+    -- Match the native footer's icon size within the PrettyUI button.
     button.content:SetPos(0, 0)
     button.content:SetSize(24, 24)
-    tip = compactTooltip.attach(button.root, buttonRoot, "Open Settings")
+
+    local top = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
+        or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
+    if not top then return end
+    local overlay = ui.Layer.new(top)
+    if not overlay then return end
+    tipLayer = overlay
+    overlay:SetSize(0, 0, 1, 1)
+    overlay.clickthrough = true
+
+    local tip
+    -- Use the screen layer so the footer does not clip the hover text.
+    prettyui.Tooltip.registerContext(owner, overlay, function(target)
+        if buttonRoot ~= owner then return 0, 0 end
+        local targetPos, overlayPos = target.xyGlobal, overlay.xyGlobal
+        local x = targetPos.x - overlayPos.x + (target.width - tip.width) / 2
+        return math.max(0, math.min(x, overlay.width - tip.width)), targetPos.y - overlayPos.y + 3
+    end)
+    tip = compactTooltip.attach(button.root, owner, "Open Settings")
 end
 
 return manageSettings

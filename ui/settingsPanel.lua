@@ -5,7 +5,8 @@ local state = require("ui/trackerState")
 
 local settingsPanel = {}
 -- Keep the settings form in its own window so the ribbon button can open it.
-local window, root, view, queue, profileTip
+local window, root, view, queue
+local headingTips = {}
 local isOpen = false
 local armedSkill, profileAction, selectedAccount, profileError, needsBuild
 local shownGeneration = -1
@@ -24,6 +25,25 @@ local function title(owner, content, x, y, width)
     value.alignVertical = ui.AlignMode.CENTRE
     value.maxLines = 1
     value.clickthrough = true
+end
+
+local function titleWithInfo(owner, content, x, y, width, help)
+    title(owner, content, x, y, width)
+    local icon = ui.Sprite.new(owner)
+    local iconX = x + utils.CalcTextWidth(id.Font.CINZEL_13PT_BOLD, content) + 7
+    icon:SetPos(iconX, y + 1)
+    icon:SetSize(14, 14)
+    icon.spriteID = id.Sprite.RS3_ICON_INFO
+    headingTips[#headingTips + 1] = prettyui.Tooltip.attach(icon, owner, {
+        categoryID = "auto", text = help, placement = "above", maxWidth = 280
+    })
+    return iconX
+end
+
+-- Release the hover hooks while their heading sprites are still mounted.
+local function destroyHeadingTips()
+    for _, tip in ipairs(headingTips) do tip:Destroy() end
+    headingTips = {}
 end
 
 local function note(owner, content, x, y, width)
@@ -47,7 +67,7 @@ local function build()
         profileAction, selectedAccount, profileError = nil, nil, nil
         shownGeneration = generation
     end
-    if profileTip then profileTip:Destroy(); profileTip = nil end
+    destroyHeadingTips()
     if view then view:Destroy(); view = nil end
     if root then root:Destroy() end
     local width, height = window.viewport.width, window.viewport.height
@@ -83,12 +103,21 @@ local function build()
         { text = "Show overlay backdrop", value = "showOverlayBackdrop",
             selected = settings.showOverlayBackdrop == true }
     }
+    local usingNestedPanel = settings.useNestedPanel == true
+    local hubChoices = {
+        { text = "Use PrettyUI Side Bar", value = "useNestedPanel",
+            selected = usingNestedPanel },
+        { text = "Hide Plugin Hub ribbon", value = "hidePluginHubRibbon",
+            selected = settings.hidePluginHubRibbon == true, disabled = usingNestedPanel }
+    }
     local controlsY = 24
     local rowsY = controlsY + #displayChoices * 22 + 4
     local opacityY = rowsY + 24
     local hintY = opacityY + 46
+    local hubTitleY = math.max(controlsY + #choices * 22, hintY + 22) + 6
+    local hubControlsY = hubTitleY + 20
     -- Reserve the scrollbar gutter before sizing either column.
-    view:SetContentHeight(math.max(controlsY + #choices * 22 + 4, hintY + 22))
+    view:SetContentHeight(hubControlsY + #hubChoices * 22 + 4)
     local leftX, gap = 6, 16
     local columnWidth = math.floor((view.contentWidth - leftX * 2 - gap) / 2)
     local rightX = leftX + columnWidth + gap
@@ -149,17 +178,21 @@ local function build()
                 y = controlsY + (index - 1) * 22, width = clearWidth, height = 20 })
     end
 
+    -- PrettyUI callbacks queue persistent setting edits for Logic.
+    local function changeDisplay(_, _, name, selected)
+        queue(function()
+            if state.getGeneration() ~= generation then return end
+            if name == "hidePluginHubRibbon" and state.getSettings().useNestedPanel == true then return end
+            state.setSetting(name, selected)
+            armedSkill, profileAction, needsBuild = nil, nil, true
+        end)
+    end
+
     title(view.content, "DISPLAY", rightX, 4, columnWidth)
     prettyui.CheckboxButton.new(view.content, displayChoices, {
         categoryID = "auto",
         x = rightX, y = controlsY, width = columnWidth,
-        -- PrettyUI callbacks queue persistent setting edits for Logic.
-        onChange = function(_, _, name, selected)
-            queue(function()
-                state.setSetting(name, selected)
-                armedSkill, profileAction, needsBuild = nil, nil, true
-            end)
-        end
+        onChange = changeDisplay
     })
     local rowLimits = persistence.overlayRows
     local rows = settings.overlayRows or rowLimits.default
@@ -208,6 +241,17 @@ local function build()
     })
     note(view.content, "Shift+drag to move.", rightX, hintY, columnWidth)
 
+    local hubHeading = prettyui.IsClassicUI() and "CLASSIC MODE SETTINGS" or "PLUGIN HUB"
+    titleWithInfo(view.content, hubHeading, leftX, hubTitleY, columnWidth,
+        "Resource Tracker opens in the game's Plugin Hub by default.<br><br>"
+        .. "Turn on *Use PrettyUI Side Bar* to use PrettyUI's sidebar in Classic layout or dock the tracker in Modern layout.<br><br>"
+        .. "While using the Plugin Hub, toggle *Hide Plugin Hub ribbon* to show or hide its ribbon.")
+    prettyui.CheckboxButton.new(view.content, hubChoices, {
+        categoryID = "auto",
+        x = leftX, y = hubControlsY, width = view.contentWidth - leftX * 2,
+        onChange = changeDisplay
+    })
+
     local separator = ui.Rectangle.new(root)
     separator:SetPos(8, bottomY - 5)
     separator:SetSize(width - 16, 1)
@@ -218,7 +262,11 @@ local function build()
     local ready = state.isReady()
     local target = state.getAccount()
     local profiles = persistence.profiles()
-    local entries = { { text = "Current", id = 1, account = target } }
+    local characterName = state.getCharacterName()
+    local entries = { {
+        text = characterName and ("Current: " .. characterName) or "Current",
+        id = 1, account = target
+    } }
     local selectedIndex = 1
     for _, profile in ipairs(profiles) do
         if profile.account ~= target then
@@ -238,20 +286,11 @@ local function build()
     end
     selectedAccount = account
 
-    title(root, "SAVED PROFILES", 8, bottomY + 2, width - 16)
-    local info = ui.Sprite.new(root)
-    local infoX = 15 + utils.CalcTextWidth(id.Font.CINZEL_13PT_BOLD, "SAVED PROFILES")
-    info:SetPos(infoX, bottomY + 3)
-    info:SetSize(14, 14)
-    info.spriteID = id.Sprite.RS3_ICON_INFO
-    profileTip = prettyui.Tooltip.attach(info, root, {
-        categoryID = "auto",
-        text = "Saved Profiles - are shared by characters on this device.<br><br>"
-            .. "*Current* is this character's active save.<br><br>"
-            .. "*Copy Profile* replaces this character's save with a copy of the selected profile.<br><br>"
-            .. "*Delete Profile* permanently removes the selected save.",
-        placement = "above", maxWidth = 280
-    })
+    local infoX = titleWithInfo(root, "SAVED PROFILES", 8, bottomY + 2, width - 16,
+        "Saved Profiles - are shared by characters on this device.<br><br>"
+        .. "*Current* is this character's active save.<br><br>"
+        .. "*Copy Profile* replaces this character's save with a copy of the selected profile.<br><br>"
+        .. "*Delete Profile* permanently removes the selected save.")
     local actionWidth, actionGap = 120, 8
     local deleteX = width - 8 - actionWidth
     local copyX = deleteX - actionGap - actionWidth
@@ -340,7 +379,7 @@ function settingsPanel.open(actionQueue)
             categoryID = "auto",
             title = "Resource Tracker settings",
             x = -305, y = -200, xAnchor = 0.5, yAnchor = 0.5,
-            width = 600, height = 385,
+            width = 600, height = 460,
             resizable = false,
             -- Let players move the Settings window in the fixed Classic layout.
             respectInterfaceLock = false,
@@ -359,7 +398,7 @@ end
 function settingsPanel.refresh()
     if not isOpen or not window then return end
     if not ui.Interfaces:GetInterface(window.content.interfaceID) then
-        if profileTip then profileTip:Destroy(); profileTip = nil end
+        destroyHeadingTips()
         window, root, view, armedSkill, profileAction, selectedAccount, profileError, needsBuild =
             nil, nil, nil, nil, nil, nil, nil, nil
         isOpen = false
@@ -372,12 +411,12 @@ end
 
 -- Destroy the form before its window when the plugin unloads.
 function settingsPanel.destroy()
-    if profileTip then profileTip:Destroy() end
+    destroyHeadingTips()
     if view then view:Destroy() end
     if root then root:Destroy() end
     if window then window:Destroy() end
-    window, root, view, queue, profileTip, armedSkill, profileAction, selectedAccount,
-        profileError, needsBuild = nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
+    window, root, view, queue, armedSkill, profileAction, selectedAccount,
+        profileError, needsBuild = nil, nil, nil, nil, nil, nil, nil, nil, nil
     shownGeneration = -1
     isOpen = false
 end

@@ -1,4 +1,6 @@
 local state = require("ui/trackerState")
+local stats = require("Core/sessionStats")
+local sessionCsv = require("Core/sessionCsv")
 
 local session = {}
 -- PrettyUI supplies the movable, resizable window. The report view is rebuilt
@@ -9,6 +11,7 @@ local isOpen = false
 local page = "session"
 local historyIndex = 1
 local historyClearArmed = false
+local exportText
 local shownGeneration = -1
 local shownRevision = -1
 local shownPage
@@ -44,13 +47,58 @@ end
 -- Every item uses the report's shared active time, including time spent
 -- gathering other resources. Show no rate before activity starts.
 local function rate(count, activeSeconds)
-    if activeSeconds <= 0 then return "-" end
-    return string.format("%.0f", count * 3600 / activeSeconds)
+    local itemsPerHour = stats.itemsPerHour(count, activeSeconds)
+    return itemsPerHour and string.format("%.0f", itemsPerHour) or "-"
 end
 
 -- Display whole resource quantities in session and day reports.
 local function formatCount(value)
     return string.format("%.0f", value)
+end
+
+local function addExportButton(owner, text, x, y, width, enabled, getReport)
+    local buttonRoot = root
+    local buttonPage = page
+    local generation = state.getGeneration()
+    prettyui.SimpleButton.new(owner, text, function()
+        queue(function()
+            if not isOpen or root ~= buttonRoot or page ~= buttonPage
+                or state.getGeneration() ~= generation then return end
+            local period, report = getReport()
+            if not report or #report.items == 0 then return end
+            exportText = sessionCsv.format(period, report)
+            historyClearArmed = false
+            rebuild = true
+        end)
+    end, { categoryID = "auto", x = x, y = y, width = width, height = 22,
+        disabled = not enabled })
+end
+
+local function drawExport(y)
+    if not exportText then return y end
+    local width = view.contentWidth
+    local closeWidth, fieldHeight = 60, 70
+    local hint = label(view.content, "Ctrl+A, Ctrl+C to copy", 5, y,
+        width - closeWidth - 32)
+    prettyui.SimpleButton.new(view.content, "Close", function()
+        exportText, rebuild = nil, true
+    end, { categoryID = "auto", x = width - closeWidth - 22, y = y,
+        width = closeWidth, height = 20 })
+    local fieldY = y + 23
+    local field = view:AddTextField({
+        categoryID = "auto", absolute = true, x = 5, y = fieldY,
+        width = width - 27, height = fieldHeight, maxLength = #exportText
+    })
+    field.root.text.maxLines = 0
+    field.root.text.alignVertical = ui.AlignMode.TOPLEFT
+    field:SetText(exportText)
+    -- Accept Windows line endings while checking that the field kept every row.
+    if field:GetText():gsub("\r\n", "\n") ~= exportText then
+        field:Destroy()
+        hint.content = "Could not display full CSV."
+        return fieldY
+    end
+    return fieldY + fieldHeight + 5
 end
 
 -- Split the available width between the resource name and the two numeric
@@ -109,23 +157,28 @@ local function buildSession()
             maxWidth = 260 }
     })
     -- Leave room for PrettyUI's button padding so the label stays readable.
-    local buttonWidth = math.ceil(utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "New session")) + 45
+    local buttonWidth = math.ceil(utils.CalcTextWidth(id.Font.MUSEO_SANS_15PT_REGULAR, "Export Session")) + 45
     -- SimpleView's scrollbar overlays its content. Move the button below the
     -- heading at narrow widths instead of letting the two controls collide.
     local buttonX = view.contentWidth - buttonWidth - 22
     local buttonY = y
     if buttonX < infoX + 21 then
         buttonY = y + 23
-        y = y + 23
     end
     -- Queue the reset for Logic, where tracker state and PersistentDB are updated.
     prettyui.SimpleButton.new(view.content, "New session", function()
         queue(function()
             state.newSession()
+            exportText = nil
             rebuild = true
         end)
     end, { categoryID = "auto", x = buttonX, y = buttonY, width = buttonWidth, height = 20 })
-    y = y + 23
+    addExportButton(view.content, "Export Session", buttonX, buttonY + 23, buttonWidth,
+        #report.items > 0, function()
+            local current = state.getSession()
+            return current.started or "This session", current
+        end)
+    y = drawExport(buttonY + 48)
     startedLabel = label(view.content, "Started: " .. (report.started or "-"),
         5, y, view.contentWidth - 10)
     y = y + 19
@@ -172,6 +225,7 @@ local function buildHistory()
         -- Switch the history report to the chosen saved day.
         onChange = function(_, entryId)
             historyIndex = entryId
+            exportText = nil
             rebuild = true
         end
     })
@@ -184,6 +238,7 @@ local function buildHistory()
                 state.clearHistory()
                 historyIndex = 1
                 historyClearArmed = false
+                exportText = nil
                 rebuild = true
             end)
         else
@@ -191,15 +246,19 @@ local function buildHistory()
             rebuild = true
         end
     end, { categoryID = "auto", x = pickerWidth + 28, y = 45, width = 130, height = 22 })
+    addExportButton(root, "Export Day", pickerWidth + 28, 71, 130, hasHistory, function()
+        local day = state.getSessionDays()[historyIndex]
+        if day then return day, state.getSessionDay(day) end
+    end)
     if not hasHistory then
         historyClearArmed = false
-        label(view.content, "No daily history yet.", 5, 31, view.contentWidth - 10)
+        label(view.content, "No daily history yet.", 5, 55, view.contentWidth - 10)
         view:SetContentHeight(view.root.height)
         return
     end
     local key = days[historyIndex]
     local report = state.getSessionDay(key)
-    local y = 31
+    local y = drawExport(55)
     label(view.content, "DAILY SUMMARY", 5, y, view.contentWidth - 10, nil, titleColour)
     y = y + 23
     label(view.content, "Total items: " .. formatCount(report.total), 5, y,
@@ -214,7 +273,7 @@ end
 -- parent layer during a page change, resize, or data refresh. Keep the
 -- same page's scroll position when new tracking data refreshes its report.
 local function build()
-    local scroll = view and page == shownPage and view.scrollY or 0
+    local scroll = not exportText and view and page == shownPage and view.scrollY or 0
     startedLabel, statusLabel, activeLabel, totalLabel = nil, nil, nil, nil
     rows = {}
     if view then
@@ -243,6 +302,7 @@ local function build()
         prettyui.SimpleButton.new(root, entry.text, function()
             page = entry.id
             historyClearArmed = false
+            exportText = nil
             rebuild = true
         end, { categoryID = "auto", x = 2 + (index - 1) * (tabWidth + 2), y = 2, width = tabWidth, height = 22 })
     end
@@ -291,7 +351,10 @@ function session.open(actionQueue)
             respectInterfaceLock = false,
             scrollable = false,
             -- Closing hides the report while keeping the window for later use.
-            onClose = function() isOpen = false end
+            onClose = function()
+                isOpen = false
+                if exportText then exportText, rebuild = nil, true end
+            end
         })
         rebuild = true
     end
@@ -305,13 +368,18 @@ function session.refresh()
     if not isOpen or not window then return end
     if not ui.Interfaces:GetInterface(window.content.interfaceID) then
         window, root, view, parchment = nil, nil, nil, nil
+        exportText = nil
         return
     end
-    if rebuild or not view or shownGeneration ~= state.getGeneration()
+    local generationChanged = shownGeneration ~= state.getGeneration()
+    if generationChanged then exportText = nil end
+    if rebuild or not view or generationChanged
         or shownWidth ~= window.viewport.width or shownHeight ~= window.viewport.height then
         build()
         return
     end
+    -- Keep the CSV field selected while gathering updates the underlying reports.
+    if exportText then return end
     if page == "history" then
         if shownRevision ~= state.getRevision() then build() end
         return
@@ -338,6 +406,7 @@ function session.destroy()
     if root then root:Destroy() end
     if window then window:Destroy() end
     window, root, view, parchment = nil, nil, nil, nil
+    exportText = nil
     isOpen = false
 end
 

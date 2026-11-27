@@ -5,7 +5,7 @@ local state = require("ui/trackerState")
 
 local overlay = {}
 local layerCategory = 188
-local rowWidth, rowHeight = 230, 23
+local rowWidth = 230
 local defaultPosition = { x = 14, y = 38 }
 local rowOptions = { shadow = true }
 
@@ -93,7 +93,6 @@ local function drawRows(settings)
     local count = math.min(#entries, settings.overlayRows or persistence.overlayRows.default)
     hasRows = count > 0
     content:DeleteAll()
-    content:SetSize(rowWidth, count * rowHeight)
     content.hidden = not hasRows
     local opacity = settings.overlayBackdropOpacity or persistence.overlayBackdropOpacity.default
     if hasRows and settings.showOverlayBackdrop == true and opacity > 0 then
@@ -103,13 +102,18 @@ local function drawRows(settings)
         backdrop.colour = Vector4.new(0, 0, 0, opacity / 100)
         backdrop.clickthrough = true
     end
+    local rowY = 0
     for index = 1, count do
+        local item = entries[index].item
+        local rowHeight = resourceRow.getHeight(item, settings)
         local row = ui.Layer.new(content)
-        row:SetPos(0, (index - 1) * rowHeight)
+        row:SetPos(0, rowY)
         row:SetSize(rowWidth, rowHeight)
         row.clickthrough = true
-        resourceRow.draw(row, entries[index].item, settings, rowWidth, rowOptions)
+        resourceRow.draw(row, item, settings, rowWidth, rowOptions)
+        rowY = rowY + rowHeight
     end
+    content:SetSize(rowWidth, rowY)
 end
 
 -- The game layer can appear after account data or be replaced during a UI reload.

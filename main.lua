@@ -1,3 +1,7 @@
+assert(prettyui and prettyui.NisPanel and prettyui.IsClassicUI,
+    "Resource Tracker requires PrettyUI 1.4.0 or later. Loaded PrettyUI: "
+    .. tostring(prettyui and prettyui.version or "unavailable"))
+
 local inventoryTracker = require("Core/inventoryTracker")
 local chatTracker = require("Core/chatTracker")
 local decisions = require("Core/counting")
@@ -19,7 +23,7 @@ local function openData()
     -- Wait for the name too, so an existing name-only save can be linked when
     -- tracking access is first granted.
     if not player or not player.isValid or player.displayName == "" then return end
-    trackerState.open(id, player.displayName:lower())
+    trackerState.open(id, player.displayName)
 end
 
 -- The client calls this when the plugin is disabled or reloaded.
@@ -71,7 +75,7 @@ Event.GameStateChanged.Subscribe("resourceTrackerGameStateChanged", function(eve
     session.refresh()
     overlay.refresh()
 end)
-Event.ContentLayerReady.Subscribe("resourceTrackerContentLayerReady", panel.onReady)
+Event.ContentLayerReady.Subscribe("resourceTrackerContentLayerReady", panel.onHubReady)
 
 local uiTicks = 0
 -- Tick the UI clock and apply player actions outside PrettyUI callbacks.
@@ -95,5 +99,6 @@ end)
 -- Enabling while already in game may not emit InventoryAdded for visible containers.
 inventoryTracker.seedContainers()
 openData()
+panel.refresh()
 overlay.refresh()
-log("Resource Tracker v1.6.1 enabled.")
+log("Resource Tracker v1.6.2 enabled.")

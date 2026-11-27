@@ -147,7 +147,16 @@ local function addIcon(row, item)
     end
 end
 
--- Draw the icon, name and count. Return the name bounds for the dock tooltip.
+local function hasGoal(item, settings)
+    return settings.showGoals ~= false and item.goal ~= nil
+end
+
+-- Leave a small gap below the goal line before the next resource row.
+function resourceRow.getHeight(item, settings)
+    return hasGoal(item, settings) and 39 or 23
+end
+
+-- Draw the name, count and optional goal. Return the name bounds for the dock tooltip.
 function resourceRow.draw(row, item, settings, rowWidth, options)
     local iconWidth = settings.showIcons == false and 2 or 20
     local count = item.count
@@ -179,11 +188,18 @@ function resourceRow.draw(row, item, settings, rowWidth, options)
         plusLabel = label(row, "+", rowWidth - numberWidth - plusWidth - 3, 1,
             plusWidth, 21, colour.goal, true)
     end
+    local goalLabel
+    if hasGoal(item, settings) then
+        local percent = math.min(100, count / item.goal * 100)
+        local progress = string.format("%s / %s (%.0f%%)", countText, resourceRow.formatCount(item.goal), percent)
+        goalLabel = label(row, progress, nameX, 20, rowWidth - nameX - 5, 14, colour.goal)
+    end
     if options.shadow then
         -- Client 951-1 supports the default text shadow but lacks the shadowRGBA setter.
         nameLabel.isShadowed = true
         countLabel.isShadowed = true
         if plusLabel then plusLabel.isShadowed = true end
+        if goalLabel then goalLabel.isShadowed = true end
     end
     return name, nameX, nameWidth
 end

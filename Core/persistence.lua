@@ -1,5 +1,5 @@
 local persistence = {}
-persistence.overlayRows = { min = 4, max = 10, default = 7 }
+persistence.overlayRows = { min = 1, max = 10, default = 7 }
 persistence.overlayBackdropOpacity = { min = 0, max = 100, default = 25 }
 -- Keep one local record per character, reachable by ID or linked name.
 local storageName = "resourceTrackerV1"
@@ -147,6 +147,8 @@ function persistence.load(accountId)
         data.settings.showGoals = settings.showGoals ~= false
         data.settings.showGainPlus = settings.showGainPlus ~= false
         data.settings.showArtefacts = settings.showArtefacts ~= false
+        data.settings.useNestedPanel = settings.useNestedPanel == true
+        data.settings.hidePluginHubRibbon = settings.hidePluginHubRibbon == true
         data.settings.showOverlay = settings.showOverlay == true
         data.settings.showOverlayBackdrop = settings.showOverlayBackdrop == true
         local opacity, opacityLimits = settings.overlayBackdropOpacity, persistence.overlayBackdropOpacity

@@ -1,17 +1,16 @@
+-- Mounts one tracker page in the PrettyUI dock or the native Plugin Hub.
 local catalog = require("catalog/resourceCatalog")
 local state = require("ui/trackerState")
 local session = require("ui/session")
 local settingsPanel = require("ui/settingsPanel")
-local ribbonToggle = require("ui/ribbonToggle")
 local manageSettings = require("ui/manageSettings")
+local ribbonToggle = require("ui/ribbonToggle")
 local ports = require("ui/ports")
 local itemEditor = require("ui/itemEditor")
 local resourceRow = require("ui/resourceRow")
 local compactTooltip = require("ui/compactTooltip")
 
 local panel = {}
--- The dock panel owns presentation and click handling. 
--- Saved resources and settings remain in trackerState so reloads and settings use one data source.
 local categories = catalog.getCategories()
 local sorts = { "recent", "name", "count" }
 local sortLabels = { recent = "Recent", name = "A-Z", count = "Count" }
@@ -20,8 +19,12 @@ local label, formatCount = resourceRow.label, resourceRow.formatCount
 local selectedOutline = Vector4.new(0.82, 0.61, 0.25, 0.95)
 local warningColour = Vector4.new(1, 0.76, 0.36, 1)
 local rowOptions = { showPin = true }
+local dock, dockCategory, dockId
+local hubContent, hubPage, hubLauncher, wasUsingHub
+local hubPageCategory, hubPageId
 local parent, root, list, selected
-local tabOffset, shownCategory = 0, nil
+local classic
+local requestedTabOffset, shownCategory = 0, nil
 local pending = {}
 local tabTips = {}
 local tooltipLayer
@@ -31,8 +34,7 @@ local shownRevision, shownSettings, shownWidth, shownHeight = -1, "", 0, 0
 local shownGeneration = -1
 local shownOwned
 
--- The Plugin Hub reuses and clears its content layer when switching plugins.
--- A saved parent reference can remain readable after our children are gone.
+-- A game UI rebuild can remove our controls before PrettyUI releases its page.
 local function hasUi()
     return parent and root and list and list.root
         and ui.Interfaces:GetInterface(parent.interfaceID)
@@ -48,6 +50,12 @@ end
 
 -- Apply queued PrettyUI clicks during Logic, where saved state can be changed.
 function panel.flushActions()
+    -- PrettyUI raises the Classic sidebar each Logic event. Keep the scroll
+    -- capture above it so the thumb remains draggable outside the sidebar.
+    if classic and tooltipLayer and list and list.scrollbarVisible
+        and ui.Interfaces:GetInterface(tooltipLayer.interfaceID) then
+        tooltipLayer:MoveToFront()
+    end
     if #pending == 0 then return false end
     local actions = pending
     pending = {}
@@ -258,8 +266,7 @@ drawRows = function(settings, revealSelected)
             contentHeight = contentHeight + 18
             artefactHeaderAdded = true
         end
-        contentHeight = contentHeight +
-            ((settings.showGoals ~= false and entry.item.goal) and 39 or 23)
+        contentHeight = contentHeight + resourceRow.getHeight(entry.item, settings)
         if selected == entry.itemKey then
             contentHeight = contentHeight + editorHeight
                 + (entry.item.skill == "invention" and itemEditor.ownedHeight or 0)
@@ -295,10 +302,7 @@ drawRows = function(settings, revealSelected)
             artefactHeaderAdded = true
         end
         local itemKey, item = entry.itemKey, entry.item
-        local count = item.count
-        local hasGoal = settings.showGoals ~= false and item.goal ~= nil
-        -- Leave a small gap below goal progress before the next resource row.
-        local rowHeight = hasGoal and 39 or 23
+        local rowHeight = resourceRow.getHeight(item, settings)
         -- Nonzero categories have a small ID range. Spread large saved
         -- lists across categories so row labels cannot exhaust the dock UI.
         local row = ui.Layer.new(list.content, 200 + (index - 1) % 32)
@@ -313,12 +317,6 @@ drawRows = function(settings, revealSelected)
         end
         local name, nameX, nameWidth = resourceRow.draw(row, item, settings, rowWidth, rowOptions)
         attachNameTip(row, name, nameX, nameWidth)
-        if hasGoal then
-            local percent = math.min(100, count / item.goal * 100)
-            label(row, string.format("%s / %s (%.0f%%)", formatCount(count),
-                formatCount(item.goal), percent),
-                nameX, 20, rowWidth - nameX - 5, 14, resourceRow.goalColour)
-        end
         -- Select or collapse the resource's inline count and goal editor.
         local function toggle()
             -- Redraw the rows after the selection state changes.
@@ -375,13 +373,14 @@ drawRows = function(settings, revealSelected)
     list:SetScrollPosition(scroll)
 end
 
--- Opening or closing the ribbon can replace the Plugin Hub content layer
--- before the next Logic refresh. Those components were already destroyed
--- by the client, so do not try to rebuild rows inside their old parent.
+-- Clear references when the client has already removed the dock controls.
 local function forgetUi()
-    ribbonToggle.close()
-    manageSettings.detach()
     if root then prettyui.Tooltip.unregisterContext(root) end
+    -- Even after logout removes the viewport, PrettyUI still owns its capture
+    -- and scroll registration. Release those before destroying the overlay.
+    if list and list.root and not ui.Interfaces:GetInterface(list.root.interfaceID) then
+        list:Destroy()
+    end
     if nameTip then nameTip:Destroy() end
     nameAnchor, nameTip = nil, nil
     if tooltipLayer and ui.Interfaces:GetInterface(tooltipLayer.interfaceID) then
@@ -412,14 +411,20 @@ local function destroyUi()
     itemEditor.clear()
     for _, tip in ipairs(tabTips) do tip:Destroy() end
     tabTips = {}
-    ribbonToggle.detach()
-    manageSettings.detach()
     if root then prettyui.Tooltip.unregisterContext(root) end
     if list then list:Destroy(); list = nil end
     if nameTip then nameTip:Destroy() end
     nameAnchor, nameTip = nil, nil
     if tooltipLayer then tooltipLayer:Destroy(); tooltipLayer = nil end
     if root then root:Destroy(); root = nil end
+end
+
+local function releasePage(pageCleared)
+    if not pageCleared and hasUi() then destroyUi() else forgetUi() end
+    selected = nil
+    ports.clearSelection()
+    itemEditor.reset()
+    parent, classic = nil, nil
 end
 
 -- Create the menu after the resource view so it covers that view's scrollbar.
@@ -470,18 +475,18 @@ local function openGroupMenu(groups, current, activeGroup, x, y, width)
     menuCover:MoveToFront()
 end
 
--- Rebuild when the dock changes size or a display-setting change affects layout. 
+-- Rebuild when the dock changes size or a display-setting change affects layout.
 -- Ordinary count changes redraw only the rows in panel.refresh.
 local function build()
     if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then return end
-    destroyUi()
     local width, height = parent.width, parent.height
+    if width <= 4 or height <= 0 then return end
+    destroyUi()
     -- PrettyUI's scroll views and popup list need a category-zero mount.
     root = ui.Layer.new(parent)
     root:SetSize(width, height)
-    -- Brother Where Art Thou uses this top layer for tips outside its dock.
-    -- Map each tab's position into that layer so PrettyUI can choose whichever
-    -- side has room while keeping the hovered icon visible.
+    -- Tips can extend beyond the dock, and the scrollbar needs a capture
+    -- layer that spans the screen when it is dragged in Classic layout.
     local tooltipParent = ui.Interfaces:GetComponent(
         id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
         or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
@@ -513,7 +518,7 @@ local function build()
             return x, y
         end
         return 0, 0
-    end)
+    end, prettyui.Tooltip.getContext(parent))
     local settings = state.getSettings()
     local hidden = settings.hiddenSkills or {}
     local current, activeGroup, singleSkill, hasVisibleTabs = selection(settings)
@@ -529,25 +534,29 @@ local function build()
         visible[1] = { id = "easterEgg" }
     end
     local tabWidth, tabHeight = 28, 29
+    local inset = classic and 3 or 0
+    local tabY = 3 + inset
     -- Continue the tabs' lower edge across unused space in a wide dock.
     local tabEdge = ui.Rectangle.new(root)
-    tabEdge:SetPos(0, 32)
+    tabEdge:SetPos(0, tabY + tabHeight)
     tabEdge:SetSize(width, 1)
     tabEdge.fill = true
     tabEdge.colour = Vector4.new(0.49, 0.39, 0.22, 1)
     tabEdge.clickthrough = true
-    -- Reserve one fixed tab for the separate session window. Skill tabs still
-    -- scroll, but the report button stays reachable at every panel width.
-    local tabLeft, tabRight = 44, width - 15
+    -- The Hub has its own bottom-right Settings button.
+    local showSettingsTab = parent ~= hubPage
+    local tabLeft, tabRight = (showSettingsTab and 72 or 44) + inset, width - 15
     -- Keep one pixel clear of the right arrow while fitting as many tabs as possible.
     local slots = math.max(1, math.floor((tabRight - tabLeft - 1) / tabWidth))
     local maxOffset = math.max(0, #visible - slots)
-    tabOffset = math.min(tabOffset, maxOffset)
-    -- Keep the chosen skill in view when the category or panel width changes.
-    if current ~= shownCategory or width ~= shownWidth then
+    -- A wider panel can show earlier tabs without losing the player's scroll position.
+    local tabOffset = math.min(requestedTabOffset, maxOffset)
+    -- Bring a newly selected skill into view. Resizing keeps the current scroll position.
+    if current ~= shownCategory then
         for index, entry in ipairs(visible) do
             if entry.id == current then
                 tabOffset = math.min(math.max(tabOffset, index - slots), index - 1)
+                requestedTabOffset = tabOffset
                 break
             end
         end
@@ -556,7 +565,7 @@ local function build()
     -- Show tab paging arrows only when enabled skills exceed the dock width.
     local function addArrow(name, x, step)
         local button = ui.Layer.new(root)
-        button:SetPos(x, 3)
+        button:SetPos(x, tabY)
         button:SetSize(14, tabHeight)
         local image = Plugin.resources and
             (Plugin.resources[name] or Plugin.resources[name .. ".png"])
@@ -577,7 +586,11 @@ local function build()
         button:Subscribe(ui.Hook.ONCLICK, function()
             if (step < 0 and tabOffset > 0) or (step > 0 and tabOffset < maxOffset) then
                 -- Rebuild tab positions after a page step.
-                panel.queue(function() tabOffset = tabOffset + step; build() end)
+                panel.queue(function()
+                    if root ~= contextRoot or not hasUi() then return end
+                    requestedTabOffset = tabOffset + step
+                    build()
+                end)
             end
             return true
         end)
@@ -585,35 +598,40 @@ local function build()
     -- Only show an arrow when tabs are available beyond that edge.
     if tabOffset > 0 then addArrow("left", tabLeft - 14, -1) end
     if tabOffset < maxOffset then addArrow("right", tabRight, 1) end
-    local sessionTab = ui.Layer.new(root)
-    sessionTab:SetPos(1, 3)
-    sessionTab:SetSize(tabWidth, tabHeight)
-    local sessionBackground = ui.Sprite.new(sessionTab)
-    sessionBackground:SetSize(tabWidth, tabHeight)
-    sessionBackground.spriteID = prettyui.Sprites.ICON_TAB.inactive
-    sessionBackground.clickthrough = true
-    -- Show the session tab's hover sprite without hiding its icon.
-    sessionTab:Subscribe(ui.Hook.ONMOUSEOVER, function()
-        sessionBackground.spriteID = prettyui.Sprites.ICON_TAB.hovered
-        return true
-    end)
-    -- Restore the idle sprite when the pointer leaves the session tab.
-    sessionTab:Subscribe(ui.Hook.ONMOUSELEAVE, function()
-        sessionBackground.spriteID = prettyui.Sprites.ICON_TAB.inactive
-        return true
-    end)
-    -- Open the separate report window from the dock tab.
-    sessionTab:Subscribe(ui.Hook.ONCLICK, function()
-        -- Create or show the report during Logic.
-        panel.queue(function() session.open(panel.queue) end)
-        return true
-    end)
-    tabTips[#tabTips + 1] = compactTooltip.attach(sessionTab, root, "Session and Daily History")
-    local sessionIcon = ui.Sprite.new(sessionTab)
-    sessionIcon:SetPos(2, 2)
-    sessionIcon:SetSize(24, 24)
-    sessionIcon.spriteID = id.Sprite.STONEMENUSIDEICONS_15
-    sessionIcon.clickthrough = true
+    local function addWindowTab(x, sprite, tooltip, open)
+        local tab = ui.Layer.new(root)
+        tab:SetPos(x, tabY)
+        tab:SetSize(tabWidth, tabHeight)
+        local background = ui.Sprite.new(tab)
+        background:SetSize(tabWidth, tabHeight)
+        background.spriteID = prettyui.Sprites.ICON_TAB.inactive
+        background.clickthrough = true
+        tab:Subscribe(ui.Hook.ONMOUSEOVER, function()
+            background.spriteID = prettyui.Sprites.ICON_TAB.hovered
+            return true
+        end)
+        tab:Subscribe(ui.Hook.ONMOUSELEAVE, function()
+            background.spriteID = prettyui.Sprites.ICON_TAB.inactive
+            return true
+        end)
+        tab:Subscribe(ui.Hook.ONCLICK, function()
+            panel.queue(function()
+                -- PrettyUI may release the page before this click reaches Logic.
+                if root == contextRoot and hasUi() then open(panel.queue) end
+            end)
+            return true
+        end)
+        tabTips[#tabTips + 1] = compactTooltip.attach(tab, root, tooltip)
+        local icon = ui.Sprite.new(tab)
+        icon:SetPos(2, 2)
+        icon:SetSize(24, 24)
+        icon.spriteID = sprite
+        icon.clickthrough = true
+    end
+    addWindowTab(1 + inset, id.Sprite.STONEMENUSIDEICONS_15, "Session and Daily History", session.open)
+    if showSettingsTab then
+        addWindowTab(29 + inset, id.Sprite.RS3_ICON_GROUPING_SYSTEM_RANK_1, "Open Settings", settingsPanel.open)
+    end
     -- Keep the arrow gap in wide docks; centre the tabs only when paging.
     local tabStart = tabLeft
     if maxOffset > 0 then
@@ -623,11 +641,11 @@ local function build()
         local entry = visible[index]
         local skill = entry.id
         local isEasterEgg = skill == "easterEgg"
-        local x, y = tabStart + (index - tabOffset - 1) * tabWidth, 3
+        local x = tabStart + (index - tabOffset - 1) * tabWidth
         -- Sprite components cannot own children; the layer holds the tab
         -- background, skill icon, and optional text.
         local tab = ui.Layer.new(root)
-        tab:SetPos(x, y)
+        tab:SetPos(x, tabY)
         tab:SetSize(tabWidth, tabHeight)
         local background = ui.Sprite.new(tab)
         background:SetSize(tabWidth, tabHeight)
@@ -651,6 +669,7 @@ local function build()
             -- Choosing a skill returns its group picker to All groups.
             tab:Subscribe(ui.Hook.ONCLICK, function()
                 panel.queue(function()
+                    if root ~= contextRoot or not hasUi() then return end
                     state.setSetting("category", skill)
                     state.setSetting("group", "all")
                 end)
@@ -683,15 +702,14 @@ local function build()
             icon.alignVertical = ui.AlignMode.CENTRE
         end
     end
-    local controlY = 35
+    local controlY = 35 + inset
     local sortWidth = 68
     local sort = settings.sort or "recent"
-    ribbonToggle.attach(parent, panel.queue, hasUi, build)
-    manageSettings.attach(panel.queue, hasUi, settingsPanel.open)
     if hasVisibleTabs and current ~= "ports" then
         -- Ports follows the game's fixed resource order, so it has no sort button.
         prettyui.SimpleButton.new(root, sortLabels[sort], function()
             panel.queue(function()
+                if root ~= contextRoot or not hasUi() then return end
                 for index, name in ipairs(sorts) do
                     if name == sort then
                         state.setSetting("sort", sorts[index % #sorts + 1])
@@ -736,12 +754,129 @@ local function build()
     shownGeneration = state.getGeneration()
 end
 
--- ContentLayerReady can replace the Plugin Hub's whole content interface.
-function panel.onReady(event)
-    -- ContentLayerReady runs after the Hub has already removed the old UI.
-    forgetUi()
-    parent = event.component
-    build()
+local function releaseDock()
+    local oldDock = dock
+    dock, dockCategory, dockId = nil, nil, nil
+    if oldDock then oldDock:Destroy() end
+end
+
+-- PrettyUI keeps dock placement under its stable ID and mounts a fresh
+-- content page when the ribbon or a dock group selects this tracker.
+local function updateDock()
+    local area = ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA)
+    -- GetInterface can return a fresh Lua handle while the same game area
+    -- stays loaded. Keep the panel and its drag while its root is still mounted.
+    if dock and (not area or not dock.root or area:GetChild(dockCategory, dockId) ~= dock.root) then
+        releaseDock()
+    end
+    if dock or not area or area.width == 0 or area.height == 0 then return end
+    -- Share the same bundled icon with the native Plugin Hub ribbon.
+    local resources = Plugin.resources
+    local tabIcon = resources and (resources.ribbon or resources["ribbon.png"])
+    if tabIcon and not tabIcon.loaded then tabIcon:Load() end
+    dock = prettyui.NisPanel.new(area, {
+        categoryID = "auto",
+        id = "resource-tracker:main",
+        tabText = "Resource Tracker",
+        tabIcon = tabIcon and tabIcon.loaded and tabIcon or id.Sprite.CHILD_TAB_ICON_NOTES,
+        width = 310, height = 400,
+        minWidth = 160, minHeight = 130,
+        scrollable = false,
+        buildContent = function(view)
+            parent = view.content
+            classic = prettyui.IsClassicUI()
+            return releasePage
+        end
+    })
+    dockCategory, dockId = dock.root.categoryID, dock.root.dynamicID
+end
+
+-- The Hub clears its shared content when another plugin opens. Our child
+-- layer confirms that the active page is still owned by Resource Tracker.
+local function hasHubPage()
+    return hubPage and ui.Interfaces:GetInterface(hubContent.interfaceID)
+        and hubContent:GetChild(hubPageCategory, hubPageId) == hubPage
+end
+
+local function hasVisibleHubTracker()
+    return hasHubPage() and hubPage.visibleGlobal and parent == hubPage
+        and state.getSettings().useNestedPanel ~= true
+end
+
+local function releaseHubPage()
+    ribbonToggle.restore()
+    manageSettings.detach()
+    local mounted = hasHubPage()
+    if hubPage and parent == hubPage then
+        local pageCleared = not mounted
+        releasePage(pageCleared)
+    end
+    if mounted then
+        if hubLauncher then hubLauncher:Destroy() end
+        hubPage:Destroy()
+    end
+    hubContent, hubPage, hubLauncher = nil, nil, nil
+    hubPageCategory, hubPageId = nil, nil
+end
+
+local function updateHost()
+    if hubPage and not hasHubPage() then releaseHubPage() end
+    if not Player.IsAvailable() then
+        releaseDock()
+        releaseHubPage()
+        wasUsingHub = nil
+        return
+    end
+
+    local settings = state.getSettings()
+    if settings.useNestedPanel ~= true then
+        wasUsingHub = true
+        releaseDock()
+        if hubLauncher then hubLauncher:Destroy(); hubLauncher = nil end
+        parent = hubPage
+        local visibleTracker = hasVisibleHubTracker()
+        if visibleTracker then
+            manageSettings.sync(panel.queue, hasVisibleHubTracker, settingsPanel.open)
+        else
+            manageSettings.detach()
+        end
+        if visibleTracker and settings.hidePluginHubRibbon == true then
+            ribbonToggle.hide(hubContent)
+        else
+            ribbonToggle.restore()
+        end
+        return
+    end
+
+    ribbonToggle.restore()
+    manageSettings.detach()
+    if hubPage and parent == hubPage then releasePage() end
+    updateDock()
+    if dock and wasUsingHub then
+        wasUsingHub = nil
+        dock:Show()
+    end
+    if hubPage and hubPage.width > 12 and not hubLauncher then
+        -- The manifest's Hub icon is always present, so use it as a launcher
+        -- while the tracker is hosted by PrettyUI.
+        local page = hubPage
+        hubLauncher = prettyui.SimpleButton.new(page, "Open docked tracker", function()
+            panel.queue(function()
+                if page ~= hubPage or not hasHubPage()
+                    or state.getSettings().useNestedPanel ~= true then return end
+                if dock then dock:Show() end
+            end)
+        end, { categoryID = "auto", x = 6, y = 6, width = math.min(page.width - 12, 170), height = 22 })
+    end
+end
+
+function panel.onHubReady(event)
+    releaseHubPage()
+    hubContent = event.component
+    hubPage = ui.Layer.new(hubContent)
+    hubPageCategory, hubPageId = hubPage.categoryID, hubPage.dynamicID
+    hubPage:SetSize(0, 0, 1, 1)
+    panel.refresh()
 end
 
 -- Rebuild for layout changes and redraw rows for ordinary count updates.
@@ -751,13 +886,11 @@ function panel.refresh()
         selected = nil
         itemEditor.reset()
     end
-    if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then
-        forgetUi()
-        return
-    end
+    updateHost()
+    if not parent then return end
     if not hasUi() then
-        -- ContentLayerReady will build against the replacement ribbon interface.
-        forgetUi()
+        if root then forgetUi() end
+        build()
         return
     end
     -- A new account or game state replaces the full data set and clears selection.
@@ -766,7 +899,7 @@ function panel.refresh()
         build()
         return
     end
-    if not root or parent.width ~= shownWidth or parent.height ~= shownHeight then
+    if parent.width ~= shownWidth or parent.height ~= shownHeight then
         build()
         return
     end
@@ -791,9 +924,9 @@ end
 -- Release PrettyUI elements and pending actions when the plugin unloads.
 function panel.destroy()
     pending = {}
-    destroyUi()
-    ribbonToggle.close()
-    parent = nil
+    releaseDock()
+    releaseHubPage()
+    wasUsingHub = nil
 end
 
 return panel

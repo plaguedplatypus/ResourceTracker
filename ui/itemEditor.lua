@@ -19,7 +19,7 @@ function itemEditor.reset()
     draft, armed = "", nil
 end
 
--- The Hub may destroy its old layer before our next Logic event.
+-- The game may remove the dock before PrettyUI releases the old page.
 function itemEditor.forget()
     itemEditor.reset()
     controls, tooltipContexts = {}, {}
@@ -45,7 +45,7 @@ function itemEditor.draw(owner, y, width, context, options)
     background.clickthrough = true
 
     -- Scroll offsets are absent from xyGlobal, so place tooltips using the
-    -- current viewport position. Ignore callbacks from a replaced Hub panel.
+    -- current viewport position. Ignore callbacks from a released dock page.
     local root, list, overlay = context.root, context.list, context.tooltipLayer
     local tips = {}
     prettyui.Tooltip.registerContext(layer, overlay, function(target)
@@ -63,7 +63,7 @@ function itemEditor.draw(owner, y, width, context, options)
             y = y + 3
         end
         return x, y
-    end)
+    end, prettyui.Tooltip.getContext(list.content))
     tooltipContexts[#tooltipContexts + 1] = layer
 
     local function attachTip(button, text)
