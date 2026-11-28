@@ -2,29 +2,43 @@
 
 ## 1.6.2
 
-- Resource Tracker requires PrettyUI 1.4.0 or later and opens in the native Plugin Hub by default. Turn on **Use PrettyUI Side Bar** for the Classic sidebar or Modern docking.
-- Resource Tracker shares one resource-stack icon across the docked tab, PrettyUI ribbon, Classic sidebar, and native Plugin Hub ribbon. The native ribbon displays it on clients with custom ribbon icon support.
-- Open Settings from the cog next to Session in the PrettyUI dock or in the bottom-right corner of the native Plugin Hub.
-- Choose the tracker panel and optionally hide the Hub ribbon in **Classic Mode Settings** or **Plugin Hub**. Hover over the info icon to see how these options work. Both choices are saved per character.
-- The recent items overlay now supports 1–10 rows, with 7 rows by default.
-- The recent items overlay shows progress toward each item's goal when **Show goals** is enabled.
-- Keep the PrettyUI dock mounted while the client refreshes its interface handles so an active drag can finish.
-- Dock tabs ignore clicks queued just before the tracker closes or switches pages.
-- Category tabs remember their scroll position when you resize the tracker.
-- Saved Profiles shows the current character's name.
-- Export the current session or the selected day's report as CSV from the Session window.
+Resource Tracker 1.6.2 requires PrettyUI 1.4.0
+
+- Resource Tracker 1.6.2 opens in the native Plugin Hub by default.
+- Turn on Use PrettyUI Side Bar to switch to PrettyUI’s panel. In Classic layout, open it from the PrettyUI sidebar. In Modern layout, open it from the PrettyUI ribbon.
+- In Modern layout, unlock your game interface and drag the tracker by its title bar onto a compatible window header or tab strip to dock it. PrettyUI remembers the panel’s placement.
+- The Resource Tracker icon appears on the docked tab, PrettyUI ribbon, and Classic sidebar.
+- In PrettyUI mode, open Settings from the cog next to Session. In Plugin Hub mode, open Settings from the cog in the bottom-right corner.
+- Switch between the two views in Classic Mode Settings or Plugin Hub, depending on your game layout. Hover over the info icon for an explanation. The view preference is saved per character.
+- Hide Plugin Hub ribbon is available when the tracker is displayed in the Plugin Hub. It is greyed out while the PrettyUI panel is active.
 
 ## 1.6.1
 
-- Updated the Plugin Hub tracker to use PrettyUI 1.3.0 component allocation. PrettyUI 1.3.0 or later is required.
-- Open Session and Settings on the dedicated plugin layer. Explicitly use automatic IDs for PrettyUI controls across the tracker, including the item editor.
-- Compact tooltips now build on first hover and retain their styling on repeat hovers.
-- The Session and Settings windows can be moved and resized in Classic layout and while the game interface is locked.
-- Added a **Backdrop opacity** slider for the recent items overlay, from 0% to 100%. The default is 25%.
-- Added **Delete Profile** to remove a selected saved profile after confirmation. Renamed the existing copy action to **Copy Profile**.
-- Tightened the Saved Profiles layout and highlighted confirmation buttons in red.
-- Saved Profiles opens on **Current**. Copy Profile is disabled for the active save, and Delete Profile resets its tracker data after confirmation.
-- When all tracker tabs are hidden, the tracker shows an Easter Egg icon and a reminder to re-enable a tab in Settings.
+Tracker panel and settings
+- Updated to use PrettyUI 1.3.3+ automatic components.
+- Added a ribbon icon to the resources folder.
+- Added Setting: Under Plugin Hub, enable "Hide Plugin Hub ribbon" to give the tracker more room while its page is open. The option is off by default, is saved per character.
+- The tracker, Session window, Settings window, and item editor now use PrettyUI’s automatic component IDs. This resolves the legacy allocation warning when opening tracker controls.
+- Compact tooltips build on first hover and retain their styling on repeat hovers.
+- The Session and Settings windows can be moved in Classic layout and while the game interface is locked.
+- Category tabs remember their scroll position when the tracker is resized. If you widen the panel enough to show every tab, narrowing it again restores your previous position.
+- If you hide every skill tab, a reminder appears to re-enable a tab in Settings.
+
+Recent items overlay
+- Overlay rows now supports 1–10 rows, with 7 by default.
+- With Show goals enabled, overlay items with a goal show their progress toward the target.
+- The Backdrop opacity slider ranges from 0% to 100%, with 25% as the default. Turn on Show overlay backdrop to use it.
+
+Saved Profiles
+- Saved Profiles opens on Current, which now displays the active character.
+- The recovery action is now called Copy Profile. Selecting another profile lets you copy its counts, goals, settings, and history into your active save. The button is disabled when Current is selected.
+- Delete Profile removes the selected profile after confirmation. Deleting Current resets the tracker data for the active character.
+- The profile controls use a more compact layout. Confirmation buttons highlight in red so you can see which action is armed.
+
+Session and daily history
+- Export Session, below New session, exports the current session as CSV.
+- Export Day, below Clear history, exports the date selected in the Daily History dropdown.
+- Both exports include resource counts, active gathering time in seconds, and items per hour. Click the CSV field, then press Ctrl+A and Ctrl+C to copy it.
 
 ## 1.6.0
 
