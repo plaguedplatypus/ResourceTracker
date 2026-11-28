@@ -397,11 +397,8 @@ end
 -- Reflow the form after settings edits or a window resize.
 function settingsPanel.refresh()
     if not isOpen or not window then return end
-    if not ui.Interfaces:GetInterface(window.content.interfaceID) then
-        destroyHeadingTips()
-        window, root, view, armedSkill, profileAction, selectedAccount, profileError, needsBuild =
-            nil, nil, nil, nil, nil, nil, nil, nil
-        isOpen = false
+    if not ui.Interfaces:GetInterface(window.interfaceID) then
+        settingsPanel.destroy()
         return
     end
     if needsBuild or not view or shownGeneration ~= state.getGeneration()
@@ -413,7 +410,7 @@ end
 function settingsPanel.destroy()
     destroyHeadingTips()
     if view then view:Destroy() end
-    if root then root:Destroy() end
+    if root and window and ui.Interfaces:GetInterface(window.interfaceID) then root:Destroy() end
     if window then window:Destroy() end
     window, root, view, queue, armedSkill, profileAction, selectedAccount,
         profileError, needsBuild = nil, nil, nil, nil, nil, nil, nil, nil, nil

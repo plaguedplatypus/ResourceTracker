@@ -11,6 +11,7 @@ local settingsPanel = require("ui/settingsPanel")
 local session = require("ui/session")
 local ports = require("ui/ports")
 local overlay = require("ui/recentOverlay")
+local inGame = Player.IsAvailable()
 
 -- A granted ID can arrive after login. Wait for it so a renamed character
 -- cannot start a second save under the new name before its ID arrives.
@@ -26,6 +27,13 @@ local function openData()
     trackerState.open(id, player.displayName)
 end
 
+local function releaseUi()
+    panel.destroy()
+    settingsPanel.destroy()
+    session.destroy()
+    overlay.destroy()
+end
+
 -- The client calls this when the plugin is disabled or reloaded.
 function PluginShutdown()
     Event.InventoryAdded.Unsubscribe("resourceTrackerInventoryAdded")
@@ -36,10 +44,7 @@ function PluginShutdown()
     Event.GameStateChanged.Unsubscribe("resourceTrackerGameStateChanged")
     Event.ContentLayerReady.Unsubscribe("resourceTrackerContentLayerReady")
     Event.Logic.Unsubscribe("resourceTrackerUiLogic")
-    panel.destroy()
-    settingsPanel.destroy()
-    session.destroy()
-    overlay.destroy()
+    releaseUi()
     decisions.discardPending()
     trackerState.unload()
 end
@@ -52,6 +57,7 @@ Event.InventoryRemoved.Subscribe("resourceTrackerInventoryRemoved", inventoryTra
 Event.ChatMessage.Subscribe("resourceTrackerChatMessage", chatTracker.onMessage)
 -- Complete each server packet before refreshing the visible totals.
 Event.ServerLogic.Subscribe("resourceTrackerServerLogic", function()
+    if not inGame then return end
     openData()
     decisions.finishPacket()
     -- Refresh after a server packet so porter rewards appear promptly.
@@ -64,22 +70,32 @@ end)
 Event.GameStateChanged.Subscribe("resourceTrackerGameStateChanged", function(event)
     -- Inventory snapshots from a previous world can be stale after a transition.
     inventoryTracker.onGameStateChanged(event)
-    if event.newState == GameState.GAME then
-        openData()
-    else
-        trackerState.unload()
+    if event.newState ~= GameState.GAME then
+        -- Stop refreshing before clearing state. Native layers can still
+        -- be visible while the client is leaving the world.
+        if inGame then
+            inGame = false
+            trackerState.unload()
+            releaseUi()
+        end
+        return
     end
+    inGame = true
+    openData()
     ports.poll()
     panel.refresh()
     settingsPanel.refresh()
     session.refresh()
     overlay.refresh()
 end)
-Event.ContentLayerReady.Subscribe("resourceTrackerContentLayerReady", panel.onHubReady)
+Event.ContentLayerReady.Subscribe("resourceTrackerContentLayerReady", function(event)
+    if inGame then panel.onHubReady(event) end
+end)
 
 local uiTicks = 0
 -- Tick the UI clock and apply player actions outside PrettyUI callbacks.
 Event.Logic.Subscribe("resourceTrackerUiLogic", function()
+    if not inGame then return end
     -- Queue UI clicks for the Logic event so state changes happen in one place.
     trackerState.tick()
     session.resize()
@@ -97,8 +113,10 @@ Event.Logic.Subscribe("resourceTrackerUiLogic", function()
 end)
 
 -- Enabling while already in game may not emit InventoryAdded for visible containers.
-inventoryTracker.seedContainers()
-openData()
-panel.refresh()
-overlay.refresh()
+if inGame then
+    inventoryTracker.seedContainers()
+    openData()
+    panel.refresh()
+    overlay.refresh()
+end
 log("Resource Tracker v1.6.2 enabled.")

@@ -2,7 +2,7 @@
 local compactTooltip = require("ui/compactTooltip")
 
 local manageSettings = {}
-local buttonRoot, buttonCategory, buttonId, tipLayer
+local buttonRoot, buttonCategory, buttonId, tipLayer, tipInterfaceId
 
 local function getFooter()
     return ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2_PLUGIN_CONTENT__BUTTON_LAYER)
@@ -22,8 +22,8 @@ function manageSettings.detach()
         -- The old tooltip target may already have been retired with the footer.
         pcall(prettyui.Tooltip.unregisterContext, buttonRoot)
     end
-    if tipLayer and ui.Interfaces:GetInterface(tipLayer.interfaceID) then tipLayer:Destroy() end
-    buttonRoot, buttonCategory, buttonId, tipLayer = nil, nil, nil, nil
+    if tipLayer and ui.Interfaces:GetInterface(tipInterfaceId) then tipLayer:Destroy() end
+    buttonRoot, buttonCategory, buttonId, tipLayer, tipInterfaceId = nil, nil, nil, nil, nil
 end
 
 function manageSettings.sync(queue, active, openSettings)
@@ -55,6 +55,7 @@ function manageSettings.sync(queue, active, openSettings)
     local overlay = ui.Layer.new(top)
     if not overlay then return end
     tipLayer = overlay
+    tipInterfaceId = overlay.interfaceID
     overlay:SetSize(0, 0, 1, 1)
     overlay.clickthrough = true
 

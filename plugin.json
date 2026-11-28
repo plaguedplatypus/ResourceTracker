@@ -6,6 +6,6 @@
   "requiredPermissions": ["chatAccess"],
   "optionalPermissions": ["trackingAccess"],
   "requiredDependencies": {
-    "prettyui": "prettyui-test"
+    "prettyui": 6398181
   }
 }

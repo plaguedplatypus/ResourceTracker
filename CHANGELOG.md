@@ -11,6 +11,7 @@ Resource Tracker 1.6.2 requires PrettyUI 1.4.0
 - In PrettyUI mode, open Settings from the cog next to Session. In Plugin Hub mode, open Settings from the cog in the bottom-right corner.
 - Switch between the two views in Classic Mode Settings or Plugin Hub, depending on your game layout. Hover over the info icon for an explanation. The view preference is saved per character.
 - Hide Plugin Hub ribbon is available when the tracker is displayed in the Plugin Hub. It is greyed out while the PrettyUI panel is active.
+- Fixed a logout cleanup issue that could access a game interface after it had been unloaded.
 
 ## 1.6.1
 

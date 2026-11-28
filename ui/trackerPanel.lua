@@ -21,13 +21,15 @@ local warningColour = Vector4.new(1, 0.76, 0.36, 1)
 local rowOptions = { showPin = true }
 local dock, dockCategory, dockId
 local hubContent, hubPage, hubLauncher, wasUsingHub
-local hubPageCategory, hubPageId
+local hubInterfaceId, hubPageCategory, hubPageId
 local parent, root, list, selected
+-- The client can retire the parent before PrettyUI runs the cleanup callback.
+local parentInterfaceId
 local classic
 local requestedTabOffset, shownCategory = 0, nil
 local pending = {}
 local tabTips = {}
-local tooltipLayer
+local tooltipLayer, tooltipInterfaceId
 local nameAnchor, nameTip
 local groupMenu, menuCover
 local shownRevision, shownSettings, shownWidth, shownHeight = -1, "", 0, 0
@@ -37,7 +39,7 @@ local shownOwned
 -- A game UI rebuild can remove our controls before PrettyUI releases its page.
 local function hasUi()
     return parent and root and list and list.root
-        and ui.Interfaces:GetInterface(parent.interfaceID)
+        and ui.Interfaces:GetInterface(parentInterfaceId)
         and root.parent == parent
         and parent:GetChild(root.categoryID, root.dynamicID) == root
         and root:GetChild(list.root.categoryID, list.root.dynamicID) == list.root
@@ -53,7 +55,7 @@ function panel.flushActions()
     -- PrettyUI raises the Classic sidebar each Logic event. Keep the scroll
     -- capture above it so the thumb remains draggable outside the sidebar.
     if classic and tooltipLayer and list and list.scrollbarVisible
-        and ui.Interfaces:GetInterface(tooltipLayer.interfaceID) then
+        and ui.Interfaces:GetInterface(tooltipInterfaceId) then
         tooltipLayer:MoveToFront()
     end
     if #pending == 0 then return false end
@@ -378,15 +380,15 @@ local function forgetUi()
     if root then prettyui.Tooltip.unregisterContext(root) end
     -- Even after logout removes the viewport, PrettyUI still owns its capture
     -- and scroll registration. Release those before destroying the overlay.
-    if list and list.root and not ui.Interfaces:GetInterface(list.root.interfaceID) then
+    if list and list.root and not ui.Interfaces:GetInterface(list.interfaceID) then
         list:Destroy()
     end
     if nameTip then nameTip:Destroy() end
     nameAnchor, nameTip = nil, nil
-    if tooltipLayer and ui.Interfaces:GetInterface(tooltipLayer.interfaceID) then
+    if tooltipLayer and ui.Interfaces:GetInterface(tooltipInterfaceId) then
         tooltipLayer:Destroy()
     end
-    tooltipLayer = nil
+    tooltipLayer, tooltipInterfaceId = nil, nil
     selected = nil
     shownOwned = nil
     itemEditor.forget()
@@ -415,7 +417,8 @@ local function destroyUi()
     if list then list:Destroy(); list = nil end
     if nameTip then nameTip:Destroy() end
     nameAnchor, nameTip = nil, nil
-    if tooltipLayer then tooltipLayer:Destroy(); tooltipLayer = nil end
+    if tooltipLayer and ui.Interfaces:GetInterface(tooltipInterfaceId) then tooltipLayer:Destroy() end
+    tooltipLayer, tooltipInterfaceId = nil, nil
     if root then root:Destroy(); root = nil end
 end
 
@@ -424,7 +427,7 @@ local function releasePage(pageCleared)
     selected = nil
     ports.clearSelection()
     itemEditor.reset()
-    parent, classic = nil, nil
+    parent, parentInterfaceId, classic = nil, nil, nil
 end
 
 -- Create the menu after the resource view so it covers that view's scrollbar.
@@ -478,7 +481,7 @@ end
 -- Rebuild when the dock changes size or a display-setting change affects layout.
 -- Ordinary count changes redraw only the rows in panel.refresh.
 local function build()
-    if not parent or not ui.Interfaces:GetInterface(parent.interfaceID) then return end
+    if not parent or not ui.Interfaces:GetInterface(parentInterfaceId) then return end
     local width, height = parent.width, parent.height
     if width <= 4 or height <= 0 then return end
     destroyUi()
@@ -491,6 +494,7 @@ local function build()
         id.Component.TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP)
         or ui.Interfaces:GetComponent(id.Component.TOPLEVEL_V2__GAME_AREA) or root
     tooltipLayer = ui.Layer.new(tooltipParent)
+    tooltipInterfaceId = tooltipLayer.interfaceID
     tooltipLayer:SetSize(0, 0, 1, 1)
     tooltipLayer.clickthrough = true
     tooltipParent = tooltipLayer
@@ -784,6 +788,7 @@ local function updateDock()
         scrollable = false,
         buildContent = function(view)
             parent = view.content
+            parentInterfaceId = parent.interfaceID
             classic = prettyui.IsClassicUI()
             return releasePage
         end
@@ -794,7 +799,7 @@ end
 -- The Hub clears its shared content when another plugin opens. Our child
 -- layer confirms that the active page is still owned by Resource Tracker.
 local function hasHubPage()
-    return hubPage and ui.Interfaces:GetInterface(hubContent.interfaceID)
+    return hubPage and ui.Interfaces:GetInterface(hubInterfaceId)
         and hubContent:GetChild(hubPageCategory, hubPageId) == hubPage
 end
 
@@ -816,7 +821,7 @@ local function releaseHubPage()
         hubPage:Destroy()
     end
     hubContent, hubPage, hubLauncher = nil, nil, nil
-    hubPageCategory, hubPageId = nil, nil
+    hubInterfaceId, hubPageCategory, hubPageId = nil, nil, nil
 end
 
 local function updateHost()
@@ -833,7 +838,7 @@ local function updateHost()
         wasUsingHub = true
         releaseDock()
         if hubLauncher then hubLauncher:Destroy(); hubLauncher = nil end
-        parent = hubPage
+        parent, parentInterfaceId = hubPage, hubInterfaceId
         local visibleTracker = hasVisibleHubTracker()
         if visibleTracker then
             manageSettings.sync(panel.queue, hasVisibleHubTracker, settingsPanel.open)
@@ -873,6 +878,7 @@ end
 function panel.onHubReady(event)
     releaseHubPage()
     hubContent = event.component
+    hubInterfaceId = hubContent.interfaceID
     hubPage = ui.Layer.new(hubContent)
     hubPageCategory, hubPageId = hubPage.categoryID, hubPage.dynamicID
     hubPage:SetSize(0, 0, 1, 1)

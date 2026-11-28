@@ -327,9 +327,9 @@ end
 -- keeps its slower redraw schedule; only the background changes each tick.
 function session.resize()
     if not isOpen or not window or not root or not parchment then return end
+    if not ui.Interfaces:GetInterface(window.interfaceID) then return end
     local width, height = window.viewport.width, window.viewport.height
     if root.width == width and root.height == height then return end
-    if not ui.Interfaces:GetInterface(window.content.interfaceID) then return end
     root:SetSize(width, height)
     parchment:SetSize(width - 4, height - 29)
 end
@@ -366,9 +366,8 @@ end
 -- Update live values without replacing the report on every resource gain.
 function session.refresh()
     if not isOpen or not window then return end
-    if not ui.Interfaces:GetInterface(window.content.interfaceID) then
-        window, root, view, parchment = nil, nil, nil, nil
-        exportText = nil
+    if not ui.Interfaces:GetInterface(window.interfaceID) then
+        session.destroy()
         return
     end
     local generationChanged = shownGeneration ~= state.getGeneration()
@@ -403,7 +402,7 @@ end
 -- Release the report and window when the plugin unloads.
 function session.destroy()
     if view then view:Destroy() end
-    if root then root:Destroy() end
+    if root and window and ui.Interfaces:GetInterface(window.interfaceID) then root:Destroy() end
     if window then window:Destroy() end
     window, root, view, parchment = nil, nil, nil, nil
     exportText = nil
