@@ -1,17 +1,27 @@
 # Changelog
 
+## 1.6.3
+
+
+
 ## 1.6.2
 
-Resource Tracker 1.6.2 requires PrettyUI 1.4.0
+### Changes
 
-- Resource Tracker 1.6.2 opens in the native Plugin Hub by default.
-- Turn on Use PrettyUI Side Bar to switch to PrettyUI’s panel. In Classic layout, open it from the PrettyUI sidebar. In Modern layout, open it from the PrettyUI ribbon.
-- In Modern layout, unlock your game interface and drag the tracker by its title bar onto a compatible window header or tab strip to dock it. PrettyUI remembers the panel’s placement.
+- Resource Tracker requires PrettyUI 1.4.0 or later and opens in the native Plugin Hub by default.
+- Open Settings with the tools icon next to Session in the PrettyUI panel or in the bottom-right corner of the Plugin Hub.
+- **Hide Plugin Hub ribbon** gives the tracker more room while its Hub page is open. The option is off by default, is saved per character, and is disabled in PrettyUI mode.
+
+### Additions
+
+- Turn on **Use PrettyUI Side Bar** to use the PrettyUI floating panel. The view you choose is saved per character.
+- Open the panel from the sidebar in Classic layout or the ribbon in Modern layout. You can also select **Open docked tracker** on the tracker’s Plugin Hub page while PrettyUI sidebar mode is active.
 - The Resource Tracker icon appears on the docked tab, PrettyUI ribbon, and Classic sidebar.
-- In PrettyUI mode, open Settings from the cog next to Session. In Plugin Hub mode, open Settings from the cog in the bottom-right corner.
-- Switch between the two views in Classic Mode Settings or Plugin Hub, depending on your game layout. Hover over the info icon for an explanation. The view preference is saved per character.
-- Hide Plugin Hub ribbon is available when the tracker is displayed in the Plugin Hub. It is greyed out while the PrettyUI panel is active.
-- Fixed a logout cleanup issue that could access a game interface after it had been unloaded.
+- To dock the tracker in Modern layout, unlock the game interface and drag the panel by its title bar onto a compatible window header or tab strip. PrettyUI remembers its placement.
+
+### Fixes
+
+- Fixed a logout error that could occur if Resource Tracker tried to refresh its windows after the game interface closed.
 
 ## 1.6.1
 

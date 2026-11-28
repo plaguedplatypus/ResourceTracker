@@ -18,7 +18,7 @@ Only supported gains are counted on the ordinary resource tabs. They start recor
 
 ## Using the tracker
 
-By default, open Resource Tracker from its tab in the game's Plugin Hub. Open Settings with the cog in the bottom-right corner.
+By default, open Resource Tracker from its tab in the game's Plugin Hub. Open Settings with the Tools icon in the bottom-right corner.
 
 In Settings, use **Classic Mode Settings** in Classic layout or **Plugin Hub** in the modern layout. **Hide Plugin Hub ribbon** gives the tracker more room while its Hub page is visible. The ribbon returns when you leave the page. Hover over the info icon for a summary.
 

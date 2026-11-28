@@ -1,11 +1,11 @@
 {
   "name": "Resource Tracker",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "contactEmailAddress": "RSPluginPlatypus@gmail.com",
   "hasRibbonIcon": true,
   "requiredPermissions": ["chatAccess"],
   "optionalPermissions": ["trackingAccess"],
   "requiredDependencies": {
-    "prettyui": 6398181
+    "prettyui": "6398181"
   }
 }
